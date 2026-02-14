@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python3 -m venv:*)",
+      "Bash(source:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(npm run dev:*)",
+      "Bash(python:*)",
+      "Bash(uvicorn:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(lsof:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

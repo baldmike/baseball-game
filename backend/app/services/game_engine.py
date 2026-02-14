@@ -372,6 +372,87 @@ def _end_half_inning(state: dict) -> None:
     state["last_play"] = msg
 
 
+def _snapshot(state: dict) -> dict:
+    """Capture a snapshot of the current game state for simulation replay."""
+    return {
+        "inning": state["inning"],
+        "is_top": state["is_top"],
+        "outs": state["outs"],
+        "balls": state["balls"],
+        "strikes": state["strikes"],
+        "bases": list(state["bases"]),
+        "away_score": list(state["away_score"]),
+        "home_score": list(state["home_score"]),
+        "away_total": state["away_total"],
+        "home_total": state["home_total"],
+        "player_role": state["player_role"],
+        "game_status": state["game_status"],
+        "last_play": state["last_play"],
+        "play_log": list(state["play_log"]),
+        "current_batter_name": state.get("current_batter_name", ""),
+        "current_batter_index": state.get("current_batter_index", 0),
+        "home_pitcher": state.get("home_pitcher"),
+        "away_pitcher": state.get("away_pitcher"),
+        "away_team": state.get("away_team"),
+        "home_team": state.get("home_team"),
+        "away_abbreviation": state.get("away_abbreviation"),
+        "home_abbreviation": state.get("home_abbreviation"),
+    }
+
+
+def simulate_game(game_id: str) -> dict:
+    """Simulate an entire game (CPU vs CPU) and return snapshots at each play."""
+    state = game_store.get_game(game_id)
+    if not state or state["game_status"] != "active":
+        return state or {}
+
+    snapshots = []
+    # Capture initial state
+    snapshots.append(_snapshot(state))
+
+    max_iterations = 500
+    iteration = 0
+
+    while state["game_status"] == "active" and iteration < max_iterations:
+        iteration += 1
+
+        if state["player_role"] == "pitching":
+            # CPU pitching: pick a pitch, CPU batter decides
+            batter = _get_current_batter(state)
+            player_stats = batter.get("stats") if batter else None
+            batter_name = batter.get("name", "Batter") if batter else "Batter"
+            pitcher = state.get("home_pitcher")
+            pitcher_stats = pitcher.get("stats") if pitcher else None
+
+            pitch_type = cpu_picks_pitch()
+            swings = cpu_decides_swing()
+            outcome = determine_outcome(pitch_type, swings, player_stats, pitcher_stats)
+            action_str = "swings" if swings else "takes"
+            msg = f"You throw a {pitch_type}. {batter_name} {action_str}: {_format_outcome(outcome)}!"
+            _apply_outcome(state, outcome, msg)
+        else:
+            # CPU batting: CPU pitcher throws, CPU batter decides
+            batter = _get_current_batter(state)
+            player_stats = batter.get("stats") if batter else None
+            pitcher = state.get("away_pitcher")
+            pitcher_stats = pitcher.get("stats") if pitcher else None
+
+            pitch_type = cpu_picks_pitch()
+            swings = cpu_decides_swing()
+            outcome = determine_outcome(pitch_type, swings, player_stats, pitcher_stats)
+            action_str = "swing" if swings else "take"
+            msg = f"Pitcher throws a {pitch_type}. You {action_str}: {_format_outcome(outcome)}!"
+            _apply_outcome(state, outcome, msg)
+
+        snapshots.append(_snapshot(state))
+
+    game_store.save_game(game_id, state)
+
+    result = dict(state)
+    result["snapshots"] = snapshots
+    return result
+
+
 def _end_game(state: dict) -> None:
     state["game_status"] = "final"
     home_name = state.get("home_team") or "Home"

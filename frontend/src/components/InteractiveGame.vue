@@ -122,9 +122,14 @@
         <p>No pitchers found — one will be assigned automatically.</p>
       </div>
 
-      <button class="play-btn" @click="startGame()" :disabled="loading || loadingAwayPitchers">
-        {{ loading ? 'Loading rosters...' : 'Play Ball!' }}
-      </button>
+      <div class="start-actions">
+        <button class="play-btn" @click="startGame()" :disabled="loading || loadingAwayPitchers">
+          {{ loading ? 'Loading rosters...' : 'Play Ball!' }}
+        </button>
+        <button class="play-btn simulate-btn" @click="startSimulation()" :disabled="loading || loadingAwayPitchers">
+          {{ loading ? 'Loading...' : 'Simulate' }}
+        </button>
+      </div>
     </div>
 
     <!-- Active Game -->
@@ -183,8 +188,19 @@
         <p>{{ game.last_play }}</p>
       </div>
 
+      <!-- Simulation Speed Controls -->
+      <div v-if="simulating" class="sim-controls">
+        <div class="mode-label">Simulation in progress</div>
+        <div class="button-group">
+          <button class="action-btn speed-btn" :class="{ active: simSpeed === 2000 }" @click="setSimSpeed(2000)">Slow</button>
+          <button class="action-btn speed-btn" :class="{ active: simSpeed === 1000 }" @click="setSimSpeed(1000)">Normal</button>
+          <button class="action-btn speed-btn" :class="{ active: simSpeed === 300 }" @click="setSimSpeed(300)">Fast</button>
+          <button class="action-btn speed-btn skip" @click="skipToEnd()">Skip to End</button>
+        </div>
+      </div>
+
       <!-- Controls -->
-      <div class="controls" v-if="game.game_status === 'active'">
+      <div class="controls" v-if="game.game_status === 'active' && !simulating">
         <!-- Pitching Mode -->
         <div v-if="game.player_role === 'pitching'" class="pitch-controls">
           <div class="mode-label">You're Pitching — Choose your pitch:</div>
@@ -235,8 +251,8 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
-import { createNewGame, getAllTeams, getTeamPitchers, throwPitch, batAction } from '../services/gameApi.js'
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
+import { createNewGame, getAllTeams, getTeamPitchers, simulateGame, throwPitch, batAction } from '../services/gameApi.js'
 import { useSoundEffects } from '../composables/useSoundEffects.js'
 import BaseballDiamond from './BaseballDiamond.vue'
 import Scoreboard from './Scoreboard.vue'
@@ -260,6 +276,13 @@ const selectedAwaySeason = ref(2024)
 const loadingAwayPitchers = ref(false)
 const awayPitcherList = ref([])
 const selectedAwayPitcherId = ref(null)
+
+// Simulation replay state
+const simulating = ref(false)
+const simSnapshots = ref([])
+const simReplayIndex = ref(0)
+const simSpeed = ref(1000)
+const simTimer = ref(null)
 
 const opponentTeams = computed(() => {
   return allTeams.value.filter(t => t.id !== teamSelected.value)
@@ -365,7 +388,79 @@ async function startGame() {
   }
 }
 
+async function startSimulation() {
+  loading.value = true
+  try {
+    // Create the game first
+    const newGame = await createNewGame({
+      teamId: teamSelected.value,
+      season: selectedSeason.value,
+      homePitcherId: selectedPitcherId.value,
+      awayTeamId: selectedOpponentId.value,
+      awaySeason: selectedAwaySeason.value,
+      awayPitcherId: selectedAwayPitcherId.value,
+    })
+    // Run the full simulation
+    const result = await simulateGame(newGame.game_id)
+    simSnapshots.value = result.snapshots || []
+    simReplayIndex.value = 0
+    simulating.value = true
+    // Show the first snapshot
+    if (simSnapshots.value.length > 0) {
+      game.value = { ...newGame, ...simSnapshots.value[0] }
+    }
+    // Start replaying
+    startReplayTimer()
+  } finally {
+    loading.value = false
+  }
+}
+
+function startReplayTimer() {
+  stopReplayTimer()
+  simTimer.value = setInterval(() => {
+    simReplayIndex.value++
+    if (simReplayIndex.value >= simSnapshots.value.length) {
+      stopReplayTimer()
+      simulating.value = false
+      return
+    }
+    game.value = { ...game.value, ...simSnapshots.value[simReplayIndex.value] }
+  }, simSpeed.value)
+}
+
+function stopReplayTimer() {
+  if (simTimer.value) {
+    clearInterval(simTimer.value)
+    simTimer.value = null
+  }
+}
+
+function setSimSpeed(ms) {
+  simSpeed.value = ms
+  if (simulating.value) {
+    startReplayTimer()
+  }
+}
+
+function skipToEnd() {
+  stopReplayTimer()
+  simulating.value = false
+  if (simSnapshots.value.length > 0) {
+    simReplayIndex.value = simSnapshots.value.length - 1
+    game.value = { ...game.value, ...simSnapshots.value[simReplayIndex.value] }
+  }
+}
+
+onUnmounted(() => {
+  stopReplayTimer()
+})
+
 function resetGame() {
+  stopReplayTimer()
+  simulating.value = false
+  simSnapshots.value = []
+  simReplayIndex.value = 0
   game.value = null
   setupStep.value = 1
   teamSelected.value = null
@@ -902,5 +997,55 @@ watch(
 .log-entries::-webkit-scrollbar-thumb {
   background: #333;
   border-radius: 3px;
+}
+
+/* Simulation */
+.start-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.simulate-btn {
+  background: #0f3460;
+  border: 2px solid #e94560;
+}
+
+.simulate-btn:hover:not(:disabled) {
+  background: #1a4a7a;
+}
+
+.sim-controls {
+  margin: 16px 0;
+}
+
+.speed-btn {
+  background: #16213e;
+  color: #e0e0e0;
+  border-color: #555;
+  min-width: 80px;
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.speed-btn.active {
+  border-color: #e94560;
+  background: #e94560;
+  color: white;
+}
+
+.speed-btn:hover:not(:disabled) {
+  border-color: #e94560;
+}
+
+.speed-btn.skip {
+  border-color: #ffdd00;
+  color: #ffdd00;
+}
+
+.speed-btn.skip:hover:not(:disabled) {
+  background: #ffdd00;
+  color: #0a0a1a;
 }
 </style>

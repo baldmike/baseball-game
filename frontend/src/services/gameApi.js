@@ -27,6 +27,11 @@ export async function createNewGame({ teamId, season, homePitcherId, awayTeamId,
   return data
 }
 
+export async function simulateGame(gameId) {
+  const { data } = await api.post(`/game/${gameId}/simulate`)
+  return data
+}
+
 export async function getGameState(gameId) {
   const { data } = await api.get(`/game/${gameId}`)
   return data

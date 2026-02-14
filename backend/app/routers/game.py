@@ -8,9 +8,10 @@ from app.models.game_models import (
     MLBTeam,
     PitcherInfo,
     PitchRequest,
+    SimulationResponse,
     TeamSelectionRequest,
 )
-from app.services.game_engine import create_new_game, process_at_bat, process_pitch
+from app.services.game_engine import create_new_game, process_at_bat, process_pitch, simulate_game
 from app.services.game_store import get_game
 from app.services import mlb_service
 
@@ -50,6 +51,15 @@ def new_game(req: TeamSelectionRequest | None = None):
         away_pitcher_id=away_pitcher_id,
     )
     return state
+
+
+@router.post("/{game_id}/simulate", response_model=SimulationResponse)
+def simulate(game_id: str):
+    state = get_game(game_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Game not found")
+    result = simulate_game(game_id)
+    return result
 
 
 @router.get("/{game_id}", response_model=GameStateResponse)

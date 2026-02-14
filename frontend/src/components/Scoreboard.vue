@@ -208,7 +208,7 @@ const totalInnings = computed(() => props.awayScore.length)
  * - 40px total column is slightly wider for emphasis
  */
 const gridStyle = computed(() => ({
-  gridTemplateColumns: `80px repeat(${totalInnings.value}, 1fr) 40px`,
+  gridTemplateColumns: `minmax(50px, 80px) repeat(${totalInnings.value}, 1fr) minmax(30px, 40px)`,
 }))
 </script>
 
@@ -415,5 +415,44 @@ const gridStyle = computed(() => ({
 .arrow {
   font-size: 14px;
   color: #e94560;
+}
+
+/* ========== Mobile Responsive ========== */
+@media (max-width: 600px) {
+  .scoreboard {
+    padding: 8px;
+  }
+
+  .cell {
+    padding: 4px 2px;
+    font-size: 12px;
+  }
+
+  .cell.header {
+    font-size: 10px;
+  }
+
+  .cell.team-col {
+    font-size: 11px;
+    padding-left: 2px;
+  }
+
+  .scoreboard-logo {
+    width: 14px;
+    height: 14px;
+  }
+
+  .count-numbers {
+    font-size: 20px;
+  }
+
+  .inning-number {
+    font-size: 20px;
+  }
+
+  .out-dot {
+    width: 12px;
+    height: 12px;
+  }
 }
 </style>

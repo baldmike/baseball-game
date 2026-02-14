@@ -169,4 +169,11 @@ defineProps({
   width: 220px;
   height: 220px;
 }
+
+@media (max-width: 600px) {
+  .diamond-svg {
+    width: 160px;
+    height: 160px;
+  }
+}
 </style>

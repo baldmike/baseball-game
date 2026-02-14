@@ -91,6 +91,12 @@ def _empty_state() -> dict:
         # (no bullpen management in this simplified simulation)
         "home_pitcher": None,
         "away_pitcher": None,
+        # Per-player box score stats for batters
+        "away_box_score": [],
+        "home_box_score": [],
+        # Per-pitcher stats
+        "away_pitcher_stats": None,
+        "home_pitcher_stats": None,
     }
 
 
@@ -148,6 +154,31 @@ def _advance_batter(state: dict) -> None:
         lineup = state.get("home_lineup")
         if lineup:
             state["home_batter_idx"] = (state.get("home_batter_idx", 0) + 1) % len(lineup)
+
+
+def _get_batter_box(state: dict) -> dict | None:
+    """Return the box score entry for the current batter."""
+    if state["is_top"]:
+        box = state.get("away_box_score", [])
+        idx = state.get("away_batter_idx", 0)
+    else:
+        box = state.get("home_box_score", [])
+        idx = state.get("home_batter_idx", 0)
+    if not box:
+        return None
+    return box[idx % len(box)]
+
+
+def _get_pitcher_box(state: dict) -> dict | None:
+    """Return the current pitcher's box score entry.
+
+    When is_top (away batting), the home pitcher is on the mound.
+    When not is_top (home batting), the away pitcher is on the mound.
+    """
+    if state["is_top"]:
+        return state.get("home_pitcher_stats")
+    else:
+        return state.get("away_pitcher_stats")
 
 
 def create_new_game(
@@ -231,6 +262,19 @@ def create_new_game(
 
                 # Initialize the first batter (away team leads off at the top of the 1st)
                 _get_current_batter(state)
+
+                # Initialize per-player box score entries for both lineups
+                for lineup, key in [(state["home_lineup"], "home_box_score"), (state["away_lineup"], "away_box_score")]:
+                    if lineup:
+                        state[key] = [
+                            {"id": p["id"], "name": p["name"], "pos": p.get("position", ""), "ab": 0, "r": 0, "h": 0, "rbi": 0, "bb": 0, "so": 0}
+                            for p in lineup
+                        ]
+
+                # Initialize pitcher box score entries
+                for pitcher, key in [(state["home_pitcher"], "home_pitcher_stats"), (state["away_pitcher"], "away_pitcher_stats")]:
+                    if pitcher:
+                        state[key] = {"id": pitcher["id"], "name": pitcher["name"], "ip_outs": 0, "h": 0, "r": 0, "er": 0, "bb": 0, "so": 0}
 
                 # Set the opening message for the play log
                 msg = f"Play Ball! You're the {home_team['name']} vs the {opponent['name']}!"
@@ -380,6 +424,9 @@ def _apply_outcome(state: dict, outcome: str, msg: str) -> None:
     state["play_log"].append(msg)
     state["last_play"] = msg
 
+    batter_box = _get_batter_box(state)
+    pitcher_box = _get_pitcher_box(state)
+
     if outcome == "ball":
         state["balls"] += 1
         # Four balls = walk (batter takes first base, runners may advance if forced)
@@ -389,6 +436,12 @@ def _apply_outcome(state: dict, outcome: str, msg: str) -> None:
         state["strikes"] += 1
         # Three strikes = strikeout (batter is out)
         if state["strikes"] >= 3:
+            if batter_box:
+                batter_box["ab"] += 1
+                batter_box["so"] += 1
+            if pitcher_box:
+                pitcher_box["so"] += 1
+                pitcher_box["ip_outs"] += 1
             _record_out(state, "Strikeout!")
     elif outcome == "foul":
         # Foul balls only add a strike if the count is below 2 strikes.
@@ -398,9 +451,18 @@ def _apply_outcome(state: dict, outcome: str, msg: str) -> None:
         # fouls with 2 strikes don't add a strike
     elif outcome in OUT_TYPES:
         # Batted-ball outs: the ball was put in play but fielded for an out
+        if batter_box:
+            batter_box["ab"] += 1
+        if pitcher_box:
+            pitcher_box["ip_outs"] += 1
         _record_out(state, _format_outcome(outcome) + "!")
     elif outcome in HIT_TYPES:
         # Hits: advance runners based on hit type and score any runs
+        if batter_box:
+            batter_box["ab"] += 1
+            batter_box["h"] += 1
+        if pitcher_box:
+            pitcher_box["h"] += 1
         _record_hit(state, outcome)
 
 
@@ -415,11 +477,22 @@ def _walk(state: dict) -> None:
     4. Reset the ball/strike count for the next batter.
     5. Advance to the next batter in the lineup.
     """
+    batter_box = _get_batter_box(state)
+    pitcher_box = _get_pitcher_box(state)
+    if batter_box:
+        batter_box["bb"] += 1
+    if pitcher_box:
+        pitcher_box["bb"] += 1
     msg = "Ball four — batter walks!"
     state["play_log"].append(msg)
     state["last_play"] = msg
     # Advance forced runners and get the number of runs scored
     runs = _advance_runners_walk(state["bases"])
+    if batter_box and runs > 0:
+        batter_box["rbi"] += runs
+    if pitcher_box and runs > 0:
+        pitcher_box["r"] += runs
+        pitcher_box["er"] += runs
     _score_runs(state, runs)
     # Reset the count for the next at-bat
     _reset_count(state)
@@ -496,8 +569,15 @@ def _record_hit(state: dict, hit_type: str) -> None:
     and moves to the next batter. If runs scored, appends a scoring message
     to both the play log and the last_play field.
     """
+    batter_box = _get_batter_box(state)
+    pitcher_box = _get_pitcher_box(state)
     # Advance runners and calculate how many runs scored
     runs = _advance_runners_hit(state["bases"], hit_type)
+    if batter_box and runs > 0:
+        batter_box["rbi"] += runs
+    if pitcher_box and runs > 0:
+        pitcher_box["r"] += runs
+        pitcher_box["er"] += runs
     _score_runs(state, runs)
     # Reset ball/strike count for the next at-bat
     _reset_count(state)
@@ -729,6 +809,11 @@ def _snapshot(state: dict) -> dict:
         "home_team": state.get("home_team"),
         "away_abbreviation": state.get("away_abbreviation"),
         "home_abbreviation": state.get("home_abbreviation"),
+        # Deep copy box score lists so snapshots capture the state at this moment
+        "away_box_score": [dict(b) for b in state.get("away_box_score", [])],
+        "home_box_score": [dict(b) for b in state.get("home_box_score", [])],
+        "away_pitcher_stats": dict(state["away_pitcher_stats"]) if state.get("away_pitcher_stats") else None,
+        "home_pitcher_stats": dict(state["home_pitcher_stats"]) if state.get("home_pitcher_stats") else None,
     }
 
 

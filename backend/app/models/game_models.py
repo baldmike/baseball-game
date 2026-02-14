@@ -164,6 +164,10 @@ class GameStateResponse(BaseModel):
     current_batter_name: str = ""
     home_pitcher: dict | None = None
     away_pitcher: dict | None = None
+    away_box_score: list[dict] = []
+    home_box_score: list[dict] = []
+    away_pitcher_stats: dict | None = None
+    home_pitcher_stats: dict | None = None
 
 
 class SimulationResponse(GameStateResponse):

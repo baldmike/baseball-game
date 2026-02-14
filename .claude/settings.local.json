@@ -14,7 +14,8 @@
       "WebFetch(domain:github.com)",
       "Bash(lsof:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(grep:*)"
     ]
   }
 }

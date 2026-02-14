@@ -487,28 +487,117 @@
       </div>
 
       <!--
-        ==================== PLAY LOG ====================
-        A scrollable list of all plays that have occurred in the game.
-        Each entry is a text description from the backend's play_log array.
-
-        Entries that start with "---" are inning separators, styled differently
-        (red + bold) to visually break up the log by inning.
-
-        The log auto-scrolls to the bottom when new entries are added
-        (handled by the play_log watcher using nextTick — see script section).
+        ==================== BOX SCORE ====================
+        Running box score showing per-player batting stats and pitcher stats
+        for both teams. Updates after every play.
       -->
-      <div class="play-log">
-        <h3>Play-by-Play</h3>
-        <!-- ref="logEl" is used by the auto-scroll watcher to access the DOM element -->
-        <div class="log-entries" ref="logEl">
-          <div
-            v-for="(entry, i) in game.play_log"
-            :key="i"
-            class="log-entry"
-            :class="{ separator: entry.startsWith('---') }"
-          >
-            {{ entry }}
-          </div>
+      <div class="box-score-section">
+        <!-- Away team batting -->
+        <div class="box-team">
+          <h3 class="box-team-header">{{ game.away_abbreviation || 'AWAY' }} Batting</h3>
+          <table class="box-table">
+            <thead>
+              <tr>
+                <th class="box-name">Player</th>
+                <th>POS</th>
+                <th>AB</th>
+                <th>R</th>
+                <th>H</th>
+                <th>RBI</th>
+                <th>BB</th>
+                <th>SO</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(p, i) in game.away_box_score"
+                :key="p.id"
+                :class="{ 'active-batter': game.is_top && i === game.current_batter_index }"
+              >
+                <td class="box-name">{{ p.name }}</td>
+                <td>{{ p.pos }}</td>
+                <td>{{ p.ab }}</td>
+                <td>{{ p.r }}</td>
+                <td>{{ p.h }}</td>
+                <td>{{ p.rbi }}</td>
+                <td>{{ p.bb }}</td>
+                <td>{{ p.so }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Home team batting -->
+        <div class="box-team">
+          <h3 class="box-team-header">{{ game.home_abbreviation || 'HOME' }} Batting</h3>
+          <table class="box-table">
+            <thead>
+              <tr>
+                <th class="box-name">Player</th>
+                <th>POS</th>
+                <th>AB</th>
+                <th>R</th>
+                <th>H</th>
+                <th>RBI</th>
+                <th>BB</th>
+                <th>SO</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(p, i) in game.home_box_score"
+                :key="p.id"
+                :class="{ 'active-batter': !game.is_top && i === game.current_batter_index }"
+              >
+                <td class="box-name">{{ p.name }}</td>
+                <td>{{ p.pos }}</td>
+                <td>{{ p.ab }}</td>
+                <td>{{ p.r }}</td>
+                <td>{{ p.h }}</td>
+                <td>{{ p.rbi }}</td>
+                <td>{{ p.bb }}</td>
+                <td>{{ p.so }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pitching summary -->
+        <div class="box-team" v-if="game.away_pitcher_stats || game.home_pitcher_stats">
+          <h3 class="box-team-header">Pitching</h3>
+          <table class="box-table">
+            <thead>
+              <tr>
+                <th class="box-name">Pitcher</th>
+                <th>IP</th>
+                <th>H</th>
+                <th>R</th>
+                <th>ER</th>
+                <th>BB</th>
+                <th>SO</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="game.away_pitcher_stats">
+                <td class="box-name">{{ game.away_pitcher_stats.name }} ({{ game.away_abbreviation || 'AWAY' }})</td>
+                <td>{{ formatIP(game.away_pitcher_stats.ip_outs) }}</td>
+                <td>{{ game.away_pitcher_stats.h }}</td>
+                <td>{{ game.away_pitcher_stats.r }}</td>
+                <td>{{ game.away_pitcher_stats.er }}</td>
+                <td>{{ game.away_pitcher_stats.bb }}</td>
+                <td>{{ game.away_pitcher_stats.so }}</td>
+              </tr>
+              <tr v-if="game.home_pitcher_stats">
+                <td class="box-name">{{ game.home_pitcher_stats.name }} ({{ game.home_abbreviation || 'HOME' }})</td>
+                <td>{{ formatIP(game.home_pitcher_stats.ip_outs) }}</td>
+                <td>{{ game.home_pitcher_stats.h }}</td>
+                <td>{{ game.home_pitcher_stats.r }}</td>
+                <td>{{ game.home_pitcher_stats.er }}</td>
+                <td>{{ game.home_pitcher_stats.bb }}</td>
+                <td>{{ game.home_pitcher_stats.so }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -516,7 +605,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { createNewGame, getAllTeams, getTeamPitchers, simulateGame, throwPitch, batAction } from '../services/gameApi.js'
 import { useSoundEffects } from '../composables/useSoundEffects.js'
 import BaseballDiamond from './BaseballDiamond.vue'
@@ -540,12 +629,6 @@ const game = ref(null)
  */
 const loading = ref(false)
 
-/**
- * Template ref for the play log's scrollable container DOM element.
- * Used by the auto-scroll watcher to programmatically scroll to the bottom
- * when new play log entries are added.
- */
-const logEl = ref(null)
 
 // ============================================================
 // SETUP WIZARD STATE
@@ -868,6 +951,17 @@ function headshotUrl(playerId) {
 /** Build the MLB CDN URL for a team's logo SVG. */
 function teamLogoUrl(teamId) {
   return `https://www.mlbstatic.com/team-logos/${teamId}.svg`
+}
+
+/**
+ * Format ip_outs (total outs recorded) into traditional IP display.
+ * e.g., 7 outs = "2.1", 9 outs = "3.0", 10 outs = "3.1"
+ */
+function formatIP(ipOuts) {
+  if (ipOuts == null) return '0.0'
+  const full = Math.floor(ipOuts / 3)
+  const partial = ipOuts % 3
+  return `${full}.${partial}`
 }
 
 // ============================================================
@@ -1248,28 +1342,6 @@ watch(
   }
 )
 
-/**
- * Watch for new play log entries and auto-scroll the log to the bottom.
- *
- * WHY nextTick: Vue batches DOM updates, so after the game state changes,
- * the new log entries aren't in the DOM yet. nextTick waits for Vue to
- * flush its DOM updates, then we scroll to the bottom.
- *
- * Without this, the play log would show old entries at the bottom and the
- * user would have to manually scroll down after every play — very annoying
- * during simulation replays that add entries rapidly.
- */
-watch(
-  () => game.value?.play_log?.length,
-  async () => {
-    // Wait for Vue to render the new log entries into the DOM
-    await nextTick()
-    if (logEl.value) {
-      // Scroll the log container to the very bottom to show the latest entry
-      logEl.value.scrollTop = logEl.value.scrollHeight
-    }
-  }
-)
 </script>
 
 <style scoped>
@@ -1855,68 +1927,67 @@ watch(
   color: white;
 }
 
-/* ========== Play Log ========== */
-/* Container for the play-by-play log section */
-.play-log {
+/* ========== Box Score ========== */
+.box-score-section {
   margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-/* "Play-by-Play" heading — small, uppercase, subdued */
-.play-log h3 {
-  font-size: 14px;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 8px;
-}
-
-/*
-  Scrollable log container — max-height prevents it from growing too tall.
-  overflow-y: auto adds a scrollbar when content exceeds the max height.
-  Dark background matches the scoreboard's background color.
-*/
-.log-entries {
+.box-team {
   background: #0f0f23;
   border: 1px solid #333;
   border-radius: 6px;
   padding: 10px;
-  max-height: 200px;
-  overflow-y: auto;
+  overflow-x: auto;
 }
 
-/* Individual log entry — subtle bottom border separates entries */
-.log-entry {
-  padding: 3px 0;
+.box-team-header {
   font-size: 13px;
+  color: #ffdd00;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 8px 0;
+}
+
+.box-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+}
+
+.box-table th {
+  color: #888;
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 4px 6px;
+  border-bottom: 1px solid #333;
+  text-align: center;
+}
+
+.box-table td {
+  padding: 4px 6px;
   color: #ccc;
+  text-align: center;
   border-bottom: 1px solid #1a1a2e;
 }
 
-/*
-  Inning separator entries (lines starting with "---").
-  Red + bold styling makes them visually break up the log by inning,
-  similar to how a newspaper box score separates innings.
-  No bottom border since the separator IS the visual break.
-*/
-.log-entry.separator {
-  color: #e94560;
+.box-table th.box-name,
+.box-table td.box-name {
+  text-align: left;
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+.box-table tr.active-batter {
+  background: rgba(233, 69, 96, 0.15);
+}
+
+.box-table tr.active-batter td {
+  color: #ffdd00;
   font-weight: bold;
-  border-bottom: none;
-  padding: 6px 0;
-}
-
-/* Custom scrollbar for the play log — matches the app's dark theme */
-.log-entries::-webkit-scrollbar {
-  width: 6px;
-}
-
-.log-entries::-webkit-scrollbar-track {
-  background: #0f0f23;
-}
-
-.log-entries::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 3px;
 }
 
 /* ========== Simulation Controls ========== */
@@ -2092,5 +2163,107 @@ watch(
 .matchup-teams {
   font-size: 12px;
   color: #aaa;
+}
+
+/* ========== Mobile Responsive ========== */
+@media (max-width: 600px) {
+  /* Tighter padding on wizard screens */
+  .start-screen {
+    padding: 30px 10px;
+  }
+
+  /* Stack field layout vertically: pitcher on top, diamond, batter below */
+  .field-layout {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .player-card {
+    flex-direction: row;
+    width: auto;
+    min-height: auto;
+    gap: 8px;
+  }
+
+  .player-headshot {
+    width: 48px;
+    height: 48px;
+  }
+
+  .player-card-info {
+    margin-top: 0;
+    align-items: flex-start;
+  }
+
+  /* Smaller action buttons on mobile */
+  .action-btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    min-width: 80px;
+  }
+
+  .swing-btn,
+  .take-btn {
+    min-width: 110px;
+  }
+
+  .play-btn {
+    padding: 12px 28px;
+    font-size: 17px;
+  }
+
+  /* Box score: compact for small screens */
+  .box-team {
+    padding: 6px;
+  }
+
+  .box-table {
+    font-size: 11px;
+  }
+
+  .box-table th {
+    font-size: 9px;
+    padding: 3px 3px;
+  }
+
+  .box-table td {
+    padding: 3px 3px;
+  }
+
+  .box-table th.box-name,
+  .box-table td.box-name {
+    min-width: 0;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Opponent grid: fewer columns on small screens */
+  .opponent-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 6px;
+  }
+
+  .opponent-card {
+    padding: 8px 4px;
+  }
+
+  /* Matchup grid: single column on small screens */
+  .matchup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Speed buttons: smaller */
+  .speed-btn {
+    min-width: 60px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* Last play banner: smaller text */
+  .last-play {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
 }
 </style>

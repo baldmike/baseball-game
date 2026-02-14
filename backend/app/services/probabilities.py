@@ -90,19 +90,37 @@ def weighted_choice(weights: dict[str, int]) -> str:
     return random.choices(outcomes, weights=w, k=1)[0]
 
 
-def determine_outcome(pitch_type: str, swings: bool, player_stats: dict | None = None) -> str:
+def determine_outcome(
+    pitch_type: str,
+    swings: bool,
+    player_stats: dict | None = None,
+    pitcher_stats: dict | None = None,
+) -> str:
     """Given a pitch type and whether the batter swings, return the outcome.
 
     If player_stats is provided, swing outcomes are adjusted based on the
     batter's real stats vs league averages.
+    If pitcher_stats is provided, outcomes are further adjusted based on the
+    pitcher's ERA, K/9, and BB/9.
     """
     if swings:
         table = dict(SWING_OUTCOMES[pitch_type])
         if player_stats:
             from app.services.stats_calculator import calculate_adjusted_outcomes
-            table = calculate_adjusted_outcomes(table, player_stats)
+            table = calculate_adjusted_outcomes(table, player_stats, pitcher_stats)
+        elif pitcher_stats:
+            from app.services.stats_calculator import calculate_adjusted_outcomes
+            # Use league-average batter stats so pitcher adjustments still apply
+            table = calculate_adjusted_outcomes(
+                table,
+                {"avg": 0.245, "slg": 0.395, "k_rate": 0.230},
+                pitcher_stats,
+            )
     else:
-        table = TAKE_OUTCOMES[pitch_type]
+        table = dict(TAKE_OUTCOMES[pitch_type])
+        if pitcher_stats:
+            from app.services.stats_calculator import calculate_adjusted_take_outcomes
+            table = calculate_adjusted_take_outcomes(table, pitcher_stats)
     return weighted_choice(table)
 
 

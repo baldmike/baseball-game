@@ -144,8 +144,44 @@ def get_team_lineup(team_id: int, season: int = 2024) -> list[dict]:
                 "position": pos_abbr,
             })
 
-        # Take up to 9 position players
-        lineup = position_players[:9]
+        # Fetch stats for all position players so we can pick the best 9
+        defaults = {"avg": 0.245, "slg": 0.395, "k_rate": 0.230, "hr_rate": 0.030}
+        for player in position_players:
+            if player["id"]:
+                player["stats"] = get_player_hitting_stats(player["id"], season)
+            else:
+                player["stats"] = dict(defaults)
+
+        def _ops(p):
+            return p["stats"]["avg"] + p["stats"]["slg"]
+
+        # First pass: fill one player per position (best OPS at each)
+        # Normalize OF variants (LF, CF, RF) to "OF"
+        target_positions = ["C", "1B", "2B", "3B", "SS", "OF", "OF", "OF", "DH"]
+        lineup = []
+        used_ids = set()
+        for target in target_positions:
+            candidates = [
+                p for p in position_players
+                if p["id"] not in used_ids
+                and (p["position"] == target
+                     or (target == "OF" and p["position"] in ("OF", "LF", "CF", "RF")))
+            ]
+            if candidates:
+                best = max(candidates, key=_ops)
+                lineup.append(best)
+                used_ids.add(best["id"])
+
+        # Second pass: fill remaining spots up to 9 with best OPS
+        remaining = [p for p in position_players if p["id"] not in used_ids]
+        remaining.sort(key=_ops, reverse=True)
+        for player in remaining:
+            if len(lineup) >= 9:
+                break
+            lineup.append(player)
+
+        # Sort final lineup by OPS descending
+        lineup.sort(key=_ops, reverse=True)
 
         # If we don't have enough, pad with placeholders
         while len(lineup) < 9:
@@ -153,14 +189,8 @@ def get_team_lineup(team_id: int, season: int = 2024) -> list[dict]:
                 "id": 0,
                 "name": f"Player {len(lineup) + 1}",
                 "position": "UT",
+                "stats": dict(defaults),
             })
-
-        # Fetch stats for each player
-        for player in lineup:
-            if player["id"]:
-                player["stats"] = get_player_hitting_stats(player["id"], season)
-            else:
-                player["stats"] = {"avg": 0.245, "slg": 0.395, "k_rate": 0.230, "hr_rate": 0.030}
 
         return lineup
     except Exception:
@@ -174,6 +204,70 @@ def get_team_lineup(team_id: int, season: int = 2024) -> list[dict]:
             }
             for i in range(9)
         ]
+
+
+def get_player_pitching_stats(player_id: int, season: int = 2024) -> dict:
+    """Fetch a player's pitching stats for a given season.
+
+    Returns dict with era, k_per_9, bb_per_9.
+    Falls back to league-average defaults if stats are missing.
+    """
+    defaults = {"era": 4.30, "k_per_9": 8.20, "bb_per_9": 3.20}
+    try:
+        stats = statsapi.player_stat_data(
+            player_id, group="pitching", type="season", sportId=1, season=season
+        )
+        for stat_group in stats.get("stats", []):
+            if stat_group.get("group") == "pitching" and stat_group.get("season") == str(season) and stat_group.get("stats"):
+                s = stat_group["stats"]
+                innings = float(s.get("inningsPitched", "0").replace(".", "")) if s.get("inningsPitched") else 0
+                if innings < 20:
+                    return defaults
+                return {
+                    "era": float(s.get("era", defaults["era"])),
+                    "k_per_9": float(s.get("strikeoutsPer9Inn", defaults["k_per_9"])),
+                    "bb_per_9": float(s.get("walksPer9Inn", defaults["bb_per_9"])),
+                }
+    except Exception:
+        pass
+    return defaults
+
+
+def get_team_pitcher(team_id: int, season: int = 2024) -> dict:
+    """Fetch a starting pitcher from the team's roster with pitching stats.
+
+    Returns dict: {id, name, position, stats}.
+    """
+    default_pitcher = {
+        "id": 0,
+        "name": "Unknown Pitcher",
+        "position": "P",
+        "stats": {"era": 4.30, "k_per_9": 8.20, "bb_per_9": 3.20},
+    }
+    try:
+        roster_data = statsapi.get(
+            "team_roster", {"teamId": team_id, "rosterType": "active", "season": season}
+        )
+        pitchers = []
+        for entry in roster_data.get("roster", []):
+            person = entry.get("person", {})
+            position = entry.get("position", {})
+            if position.get("type") == "Pitcher":
+                pitchers.append({
+                    "id": person.get("id"),
+                    "name": person.get("fullName", "Unknown"),
+                    "position": position.get("abbreviation", "P"),
+                })
+
+        if not pitchers:
+            return default_pitcher
+
+        # Pick the first pitcher (typically listed first on active roster)
+        pitcher = pitchers[0]
+        pitcher["stats"] = get_player_pitching_stats(pitcher["id"], season)
+        return pitcher
+    except Exception:
+        return default_pitcher
 
 
 def get_random_opponent(exclude_team_id: int) -> dict:

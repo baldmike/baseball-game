@@ -53,3 +53,5 @@ class GameStateResponse(BaseModel):
     home_lineup: list[dict] | None = None
     current_batter_index: int = 0
     current_batter_name: str = ""
+    home_pitcher: dict | None = None
+    away_pitcher: dict | None = None

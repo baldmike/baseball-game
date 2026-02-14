@@ -43,6 +43,9 @@ def _empty_state() -> dict:
         "home_batter_idx": 0,
         "current_batter_index": 0,
         "current_batter_name": "",
+        # Pitcher data
+        "home_pitcher": None,
+        "away_pitcher": None,
     }
 
 
@@ -99,6 +102,10 @@ def create_new_game(home_team_id: int | None = None, season: int = 2024) -> dict
                 state["home_lineup"] = mlb_service.get_team_lineup(home_team_id, season=season)
                 state["away_lineup"] = mlb_service.get_team_lineup(opponent["id"], season=season)
 
+                # Fetch starting pitchers
+                state["home_pitcher"] = mlb_service.get_team_pitcher(home_team_id, season=season)
+                state["away_pitcher"] = mlb_service.get_team_pitcher(opponent["id"], season=season)
+
                 # Set initial batter
                 _get_current_batter(state)
 
@@ -131,8 +138,12 @@ def process_pitch(game_id: str, pitch_type: str) -> dict:
     player_stats = batter.get("stats") if batter else None
     batter_name = batter.get("name", "Batter") if batter else "Batter"
 
+    # Home pitcher faces away batters in top of inning
+    pitcher = state.get("home_pitcher")
+    pitcher_stats = pitcher.get("stats") if pitcher else None
+
     swings = cpu_decides_swing()
-    outcome = determine_outcome(pitch_type, swings, player_stats)
+    outcome = determine_outcome(pitch_type, swings, player_stats, pitcher_stats)
     action_str = "swings" if swings else "takes"
     msg = f"You throw a {pitch_type}. {batter_name} {action_str}: {_format_outcome(outcome)}!"
     _apply_outcome(state, outcome, msg)
@@ -153,9 +164,13 @@ def process_at_bat(game_id: str, action: str) -> dict:
     batter = _get_current_batter(state)
     player_stats = batter.get("stats") if batter else None
 
+    # Away pitcher faces home batters in bottom of inning
+    pitcher = state.get("away_pitcher")
+    pitcher_stats = pitcher.get("stats") if pitcher else None
+
     pitch_type = cpu_picks_pitch()
     swings = action == "swing"
-    outcome = determine_outcome(pitch_type, swings, player_stats)
+    outcome = determine_outcome(pitch_type, swings, player_stats, pitcher_stats)
     action_str = "swing" if swings else "take"
     msg = f"Pitcher throws a {pitch_type}. You {action_str}: {_format_outcome(outcome)}!"
     _apply_outcome(state, outcome, msg)

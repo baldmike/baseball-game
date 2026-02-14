@@ -71,6 +71,12 @@
         <span class="batter-name">{{ game.current_batter_name }}</span>
       </div>
 
+      <!-- Current Pitcher Display -->
+      <div v-if="currentPitcherName" class="pitcher-display">
+        <span class="pitcher-label">PITCHING:</span>
+        <span class="pitcher-name">{{ currentPitcherName }}</span>
+      </div>
+
       <!-- Last Play -->
       <div class="last-play" v-if="game.last_play">
         <p>{{ game.last_play }}</p>
@@ -128,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { createNewGame, throwPitch, batAction } from '../services/gameApi.js'
 import { useSoundEffects } from '../composables/useSoundEffects.js'
 import BaseballDiamond from './BaseballDiamond.vue'
@@ -140,7 +146,7 @@ const loading = ref(false)
 const logEl = ref(null)
 const teamSelected = ref(null)
 const selectedSeason = ref(2024)
-const availableSeasons = Array.from({ length: 11 }, (_, i) => 2025 - i)
+const availableSeasons = Array.from({ length: 2025 - 1920 + 1 }, (_, i) => 2025 - i)
 
 const { playForLastPlay } = useSoundEffects()
 
@@ -150,6 +156,15 @@ const pitchTypes = [
   { label: 'Slider', value: 'slider' },
   { label: 'Changeup', value: 'changeup' },
 ]
+
+// Show the pitcher who is currently on the mound
+const currentPitcherName = computed(() => {
+  if (!game.value) return ''
+  // Top of inning: home pitcher is on the mound
+  // Bottom of inning: away pitcher is on the mound
+  const pitcher = game.value.is_top ? game.value.home_pitcher : game.value.away_pitcher
+  return pitcher?.name || ''
+})
 
 function onTeamSelected(teamId) {
   teamSelected.value = teamId
@@ -330,6 +345,27 @@ watch(
   font-size: 16px;
   font-weight: bold;
   color: #ffdd00;
+}
+
+/* Pitcher Display */
+.pitcher-display {
+  text-align: center;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+}
+
+.pitcher-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-right: 8px;
+}
+
+.pitcher-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #e94560;
 }
 
 /* Game Over */

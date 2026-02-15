@@ -3,7 +3,7 @@
     InteractiveGame — the main game component that orchestrates the entire experience.
 
     This component serves two purposes:
-    1. A 6-step setup wizard (steps 1-6) where players configure their matchup
+    1. A 5-step setup wizard (steps 1-5) where players configure their matchup
     2. The live game UI with scoreboard, diamond, controls, and play log
 
     The `setupStep` ref drives which step is shown. Once a game is created
@@ -11,16 +11,24 @@
   -->
   <div class="interactive-game">
     <!--
-      ==================== STEP 1: PICK YOUR TEAM ====================
+      ==================== STEP 1: PICK SEASON + TEAM ====================
       The landing screen with three paths forward:
-      1. Click a team in the TeamSelector grid (advances to step 2)
-      2. Click a Classic Matchup button (jumps to step 6 with pre-filled teams)
+      1. Pick a season, then click a team in the grid (advances to step 2)
+      2. Click a Classic Matchup button (jumps to step 4 with pre-filled teams)
       3. Click "Skip" to start with random teams (creates game immediately)
 
       Shown when: no game exists AND we're on step 1
     -->
     <div v-if="!game && setupStep === 1">
-      <TeamSelector @teamSelected="onTeamSelected" />
+      <div class="season-hero">
+        <h2 class="season-hero-title">Pick a Season</h2>
+        <p class="season-hero-sub">Choose an era, then select your team</p>
+        <select id="home-season" v-model="selectedSeason" class="season-hero-dropdown">
+          <option v-for="year in availableSeasons" :key="year" :value="year">{{ year }}</option>
+        </select>
+        <span v-if="loadingHomeTeams" class="season-hero-loading">Loading teams...</span>
+      </div>
+      <TeamSelector :teams="homeTeams" @teamSelected="onTeamSelected" />
 
       <!--
         Classic Matchups — pre-configured historical matchups that skip
@@ -37,11 +45,32 @@
         (since the user didn't go through steps 3 and 5 separately).
       -->
       <div class="classic-matchups">
-        <h3 class="classic-header">Classic Matchups</h3>
+        <h3 class="classic-header">Historic Games</h3>
         <div class="matchup-grid">
           <button
-            v-for="(m, i) in classicMatchups"
-            :key="i"
+            v-for="(m, i) in historicalMatchups"
+            :key="'h' + i"
+            class="matchup-card"
+            @click="selectClassicMatchup(m)"
+          >
+            <div class="matchup-logos">
+              <img :src="teamLogoUrl(m.away.id)" class="matchup-logo" />
+              <span class="matchup-vs">vs</span>
+              <img :src="teamLogoUrl(m.home.id)" class="matchup-logo" />
+            </div>
+            <div class="matchup-label">{{ m.label }}</div>
+            <div class="matchup-date">{{ m.date }} — {{ m.stadium }}</div>
+            <div class="matchup-teams">{{ m.away.name }} @ {{ m.home.name }}</div>
+            <div class="matchup-pitchers">{{ m.away.pitcherName }} vs {{ m.home.pitcherName }}</div>
+            <div class="matchup-decision"><span class="decision-w">W: {{ m.winningPitcher }}</span> · <span class="decision-l">L: {{ m.losingPitcher }}</span></div>
+          </button>
+        </div>
+
+        <h3 class="classic-header" style="margin-top: 20px">Fantasy Matchups</h3>
+        <div class="matchup-grid">
+          <button
+            v-for="(m, i) in fantasyMatchups"
+            :key="'f' + i"
             class="matchup-card"
             @click="selectClassicMatchup(m)"
           >
@@ -52,6 +81,7 @@
             </div>
             <div class="matchup-label">{{ m.label }}</div>
             <div class="matchup-teams">{{ m.away.season }} {{ m.away.name }} vs {{ m.home.season }} {{ m.home.name }}</div>
+            <div class="matchup-pitchers">{{ m.away.pitcherName }} vs {{ m.home.pitcherName }}</div>
           </button>
         </div>
       </div>
@@ -63,58 +93,21 @@
     </div>
 
     <!--
-      ==================== STEP 2: PICK YOUR SEASON ====================
-      After selecting a home team, the user picks which year's roster to use.
-      This is what makes the game historical — you can play as the 1927 Yankees
-      or the 2024 Dodgers, each with their real-world stats.
-
-      The season dropdown spans from 1920 to 2025 (over 100 years of baseball).
-    -->
-    <div v-if="!game && setupStep === 2" class="start-screen">
-      <div class="step-header">
-        <!-- Back button returns to step 1 and clears the team selection -->
-        <button class="back-btn" @click="goBack">&larr; Back</button>
-        <h3 class="step-label">Your Team: {{ homeTeamName }}</h3>
-      </div>
-      <p>Choose the season for your roster:</p>
-      <div class="season-select pregame-season">
-        <!-- v-model binds the dropdown to selectedSeason ref -->
-        <select id="season" v-model="selectedSeason" class="season-dropdown">
-          <option v-for="year in availableSeasons" :key="year" :value="year">{{ year }}</option>
-        </select>
-      </div>
-      <!-- Advances to step 3 (pitcher selection) -->
-      <button class="play-btn" @click="goToStep(3)">Next</button>
-    </div>
-
-    <!--
-      ==================== STEP 3: PICK YOUR PITCHER ====================
+      ==================== STEP 2: PICK YOUR PITCHER ====================
       Shows the list of pitchers from the selected team+season roster.
       Pitchers are fetched from the API when entering this step.
-
-      Each pitcher button shows name + key stats (ERA and K/9) so the
-      user can make an informed choice. The first pitcher is auto-selected.
-
-      If no pitchers are found (rare edge case for very old rosters),
-      the backend will assign one automatically.
     -->
-    <div v-if="!game && setupStep === 3" class="start-screen">
+    <div v-if="!game && setupStep === 2" class="start-screen">
       <div class="step-header">
         <button class="back-btn" @click="goBack">&larr; Back</button>
         <h3 class="step-label">{{ homeTeamName }} ({{ selectedSeason }})</h3>
       </div>
 
-      <!-- Loading state while pitcher API call is in flight -->
       <div v-if="loadingPitchers" class="pitcher-loading">Loading pitchers...</div>
 
-      <!-- Pitcher list: shown when pitchers have been loaded successfully -->
       <div v-else-if="pitcherList.length > 0" class="pitcher-selection">
         <p>Choose your starting pitcher:</p>
         <div class="pitcher-list">
-          <!--
-            Each pitcher button highlights when selected (via .selected class).
-            Clicking sets selectedPitcherId to that pitcher's ID.
-          -->
           <button
             v-for="p in pitcherList"
             :key="p.id"
@@ -123,35 +116,34 @@
             @click="selectedPitcherId = p.id"
           >
             <span class="pitcher-opt-name">{{ p.name }}</span>
-            <!-- ERA and K/9 are the two most important pitcher stats at a glance -->
             <span class="pitcher-opt-stats">ERA {{ p.stats.era.toFixed(2) }} | K/9 {{ p.stats.k_per_9.toFixed(1) }}</span>
           </button>
         </div>
       </div>
 
-      <!-- Fallback: no pitchers found for this team/season combo -->
       <div v-else-if="!loadingPitchers">
         <p>No pitchers found — one will be assigned automatically.</p>
       </div>
 
-      <!-- Advances to step 4 (opponent selection); disabled while pitchers are loading -->
-      <button class="play-btn" @click="goToStep(4)" :disabled="loadingPitchers">Next</button>
+      <button class="play-btn" @click="goToStep(3)" :disabled="loadingPitchers">Next</button>
     </div>
 
     <!--
-      ==================== STEP 4: PICK OPPONENT ====================
-      Shows all teams EXCEPT the user's home team (filtered via opponentTeams computed).
-      Organized by league just like step 1's TeamSelector.
-
-      The selected opponent gets a red border highlight (.selected class).
-      The Next button is disabled until an opponent is chosen.
+      ==================== STEP 3: PICK OPPONENT SEASON + TEAM ====================
+      Season dropdown above the opponent team grid. Teams update when season changes.
     -->
-    <div v-if="!game && setupStep === 4" class="start-screen">
+    <div v-if="!game && setupStep === 3" class="start-screen">
       <div class="step-header">
         <button class="back-btn" @click="goBack">&larr; Back</button>
         <h3 class="step-label">Now pick the opponent</h3>
       </div>
-      <!-- Scrollable league-grouped grid of opponent teams -->
+      <div class="season-select pregame-season" style="margin-bottom: 16px; text-align: center;">
+        <label for="away-season" style="color: #aaa; font-size: 14px; margin-right: 8px;">Season:</label>
+        <select id="away-season" v-model="selectedAwaySeason" class="season-dropdown">
+          <option v-for="year in availableSeasons" :key="year" :value="year">{{ year }}</option>
+        </select>
+        <span v-if="loadingAwayTeams" style="color: #888; margin-left: 12px; font-size: 13px;">Loading teams...</span>
+      </div>
       <div class="opponent-leagues">
         <div v-for="league in opponentLeagues" :key="league.name" class="opponent-league-section">
           <h4 class="league-header">{{ league.label }}</h4>
@@ -170,51 +162,24 @@
           </div>
         </div>
       </div>
-      <!-- Next button: disabled until an opponent is selected -->
-      <button class="play-btn" @click="goToStep(5)" :disabled="!selectedOpponentId" style="margin-top: 20px">Next</button>
+      <button class="play-btn" @click="goToStep(4)" :disabled="!selectedOpponentId" style="margin-top: 20px">Next</button>
     </div>
 
     <!--
-      ==================== STEP 5: PICK OPPONENT SEASON ====================
-      Same as step 2, but for the opponent's roster year.
-      This allows dream matchups like 1927 Yankees vs 2024 Dodgers.
-    -->
-    <div v-if="!game && setupStep === 5" class="start-screen">
-      <div class="step-header">
-        <button class="back-btn" @click="goBack">&larr; Back</button>
-        <h3 class="step-label">Opponent: {{ awayTeamName }}</h3>
-      </div>
-      <p>Choose the season for the opponent's roster:</p>
-      <div class="season-select pregame-season">
-        <select id="away-season" v-model="selectedAwaySeason" class="season-dropdown">
-          <option v-for="year in availableSeasons" :key="year" :value="year">{{ year }}</option>
-        </select>
-      </div>
-      <!-- Advances to step 6 (opponent pitcher + start game) -->
-      <button class="play-btn" @click="goToStep(6)">Next</button>
-    </div>
-
-    <!--
-      ==================== STEP 6: PICK PITCHERS + START GAME ====================
-      The final setup step before the game begins.
+      ==================== STEP 4: PICK OPPONENT PITCHER ====================
+      Select the opponent's starting pitcher (and home pitcher in classic mode).
 
       NORMAL MODE (classicMode = false):
         Shows only the AWAY pitcher list, because the home pitcher was already
-        selected in step 3.
+        selected in step 2.
 
       CLASSIC MODE (classicMode = true):
-        Shows BOTH home and away pitcher lists, because the user skipped steps 2-5
-        by selecting a classic matchup. This is why classicMode exists — it changes
-        the UI in this step to show pitcher selection for both teams.
-
-      Two action buttons:
-        - "Play Ball!" — starts an interactive game where you pitch/bat each play
-        - "Simulate" — runs the entire game on the backend and replays it as animation
+        Shows BOTH home and away pitcher lists, because the user skipped steps 2-3
+        by selecting a classic matchup.
     -->
-    <div v-if="!game && setupStep === 6" class="start-screen">
+    <div v-if="!game && setupStep === 4" class="start-screen">
       <div class="step-header">
         <button class="back-btn" @click="goBack">&larr; Back</button>
-        <!-- Header changes based on mode: classic shows both teams, normal shows only away -->
         <h3 class="step-label" v-if="!classicMode">{{ awayTeamName }} ({{ selectedAwaySeason }})</h3>
         <h3 class="step-label" v-else>{{ homeTeamName }} ({{ selectedSeason }}) vs {{ awayTeamName }} ({{ selectedAwaySeason }})</h3>
       </div>
@@ -264,19 +229,46 @@
         <div v-if="!awayPitcherList.length && (!classicMode || !pitcherList.length)">
           <p>No pitchers found — they will be assigned automatically.</p>
         </div>
+
       </template>
 
-      <!-- Start action buttons: Play Ball (interactive) or Simulate (auto-play) -->
+      <button class="play-btn" @click="goToStep(5)" :disabled="loadingPitchers || loadingAwayPitchers" style="margin-top: 20px">Next</button>
+    </div>
+
+    <!--
+      ==================== STEP 5: WEATHER + START GAME ====================
+      Weather picker and action buttons to start the game.
+      For historical matchups, the real weather is auto-selected but can be overridden.
+      For custom/fantasy games, defaults to "Clear Skies".
+    -->
+    <div v-if="!game && setupStep === 5" class="start-screen">
+      <div class="step-header">
+        <button class="back-btn" @click="goBack">&larr; Back</button>
+        <h3 class="step-label">Game Day Weather</h3>
+      </div>
+
+      <div class="weather-selection">
+        <p>Choose the conditions:</p>
+        <div class="weather-grid">
+          <button
+            v-for="key in weatherKeys"
+            :key="key"
+            class="weather-card"
+            :class="{ selected: selectedWeather === key }"
+            @click="selectedWeather = key"
+          >
+            <span class="weather-icon">{{ WEATHER_CONDITIONS[key].icon }}</span>
+            <span class="weather-label">{{ WEATHER_CONDITIONS[key].label }}</span>
+            <span class="weather-detail">{{ WEATHER_CONDITIONS[key].temp }} · {{ WEATHER_CONDITIONS[key].wind }}</span>
+          </button>
+        </div>
+      </div>
+
       <div class="start-actions">
-        <!-- "Play Ball!" creates the game and enters interactive pitch/bat mode -->
-        <button class="play-btn" @click="startGame()" :disabled="loading || loadingAwayPitchers || loadingPitchers">
+        <button class="play-btn" @click="startGame()" :disabled="loading">
           {{ loading ? 'Loading rosters...' : 'Play Ball!' }}
         </button>
-        <!--
-          "Simulate" creates the game AND runs the full simulation on the backend.
-          The result is an array of snapshots that get replayed on a timer.
-        -->
-        <button class="play-btn simulate-btn" @click="startSimulation()" :disabled="loading || loadingAwayPitchers || loadingPitchers">
+        <button class="play-btn simulate-btn" @click="startSimulation()" :disabled="loading">
           {{ loading ? 'Loading...' : 'Simulate' }}
         </button>
       </div>
@@ -347,6 +339,12 @@
         :home-team-id="teamSelected || 0"
       />
 
+      <!-- Weather banner — shows the current weather condition during the game -->
+      <div v-if="game.weather && WEATHER_CONDITIONS[game.weather]" class="weather-banner">
+        <span class="weather-banner-icon">{{ WEATHER_CONDITIONS[game.weather].icon }}</span>
+        <span class="weather-banner-text">{{ WEATHER_CONDITIONS[game.weather].label }} · {{ WEATHER_CONDITIONS[game.weather].temp }}</span>
+      </div>
+
       <!--
         Field Layout — a horizontal flex row with:
           Left: Pitcher headshot + name
@@ -358,20 +356,24 @@
       <div class="field-layout">
         <!-- Pitcher card (left side) — shows who is currently on the mound -->
         <div class="player-card pitcher-side">
-          <!--
-            Player headshot image from MLB's CDN.
-            The headshotUrl() function constructs the URL from the player's MLB ID.
-            Only rendered if the pitcher object has an ID (avoids broken images).
-          -->
-          <img
-            v-if="currentPitcher?.id"
-            :src="headshotUrl(currentPitcher.id)"
-            :alt="currentPitcherName"
-            class="player-headshot"
-          />
+          <div class="headshot-wrapper">
+            <img
+              v-if="currentPitcher?.id"
+              :src="headshotUrl(currentPitcher.id)"
+              :alt="currentPitcherName"
+              class="player-headshot"
+            />
+            <img :src="teamLogoUrl(currentPitcherTeamId)" class="player-team-badge" />
+          </div>
           <div class="player-card-info">
             <span class="player-card-label">PITCHING</span>
             <span class="player-card-name pitcher-name">{{ currentPitcherName }}</span>
+          </div>
+          <div class="fatigue-meter">
+            <span class="pitch-count">{{ currentPitchCount }} pitches</span>
+            <div class="fatigue-bar">
+              <div class="fatigue-fill" :style="{ width: fatiguePercent + '%' }" :class="fatigueLevel"></div>
+            </div>
           </div>
         </div>
 
@@ -380,12 +382,15 @@
 
         <!-- Batter card (right side) — shows who is currently at bat -->
         <div class="player-card batter-side">
-          <img
-            v-if="currentBatter?.id"
-            :src="headshotUrl(currentBatter.id)"
-            :alt="game.current_batter_name"
-            class="player-headshot"
-          />
+          <div class="headshot-wrapper">
+            <img
+              v-if="currentBatter?.id"
+              :src="headshotUrl(currentBatter.id)"
+              :alt="game.current_batter_name"
+              class="player-headshot"
+            />
+            <img :src="teamLogoUrl(currentBatterTeamId)" class="player-team-badge" />
+          </div>
           <div class="player-card-info">
             <span class="player-card-label">AT BAT</span>
             <span class="player-card-name batter-name-text">{{ game.current_batter_name }}</span>
@@ -462,6 +467,29 @@
             >
               {{ pitch.label }}
             </button>
+          </div>
+          <div class="bullpen-controls">
+            <button v-if="game.home_bullpen.length" class="change-pitcher-btn" @click="showBullpen = true">
+              Change Pitcher ({{ currentPitchCount }})
+            </button>
+          </div>
+          <!-- Bullpen modal -->
+          <div v-if="showBullpen" class="bullpen-overlay" @click.self="showBullpen = false">
+            <div class="bullpen-modal">
+              <h3 class="bullpen-title">Bullpen</h3>
+              <div class="bullpen-list">
+                <button
+                  v-for="p in game.home_bullpen"
+                  :key="p.id"
+                  class="bullpen-option"
+                  @click="doSwitchPitcher(p)"
+                >
+                  <span class="bullpen-name">{{ p.name }}</span>
+                  <span class="bullpen-stats" v-if="p.stats">ERA {{ p.stats.era.toFixed(2) }} | K/9 {{ p.stats.k_per_9.toFixed(1) }}</span>
+                </button>
+              </div>
+              <button class="bullpen-cancel" @click="showBullpen = false">Cancel</button>
+            </div>
           </div>
         </div>
 
@@ -605,9 +633,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue'
-import { createNewGame, simulateGame, processPitch, processAtBat } from '../services/gameEngine.js'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { createNewGame, simulateGame, processPitch, processAtBat, switchPitcher } from '../services/gameEngine.js'
 import { getAllTeams, getTeamPitchers } from '../services/mlbApi.js'
+import { WEATHER_CONDITIONS } from '../services/weather.js'
 import { useSoundEffects } from '../composables/useSoundEffects.js'
 import BaseballDiamond from './BaseballDiamond.vue'
 import Scoreboard from './Scoreboard.vue'
@@ -633,18 +662,16 @@ const loading = ref(false)
 
 // ============================================================
 // SETUP WIZARD STATE
-// Drives the 6-step pre-game configuration flow.
+// Drives the 4-step pre-game configuration flow.
 // ============================================================
 
 /**
- * Current step in the setup wizard (1-6).
+ * Current step in the setup wizard (1-4).
  * Each step corresponds to a v-if block in the template:
- *   1 = Pick home team (or classic matchup, or skip)
- *   2 = Pick home team's season/year
- *   3 = Pick home team's starting pitcher
- *   4 = Pick opponent team
- *   5 = Pick opponent's season/year
- *   6 = Pick opponent's pitcher + start game
+ *   1 = Pick season + home team (or classic matchup, or skip)
+ *   2 = Pick home team's starting pitcher
+ *   3 = Pick opponent season + team
+ *   4 = Pick opponent's pitcher + start game
  */
 const setupStep = ref(1)
 
@@ -687,12 +714,14 @@ const pitcherList = ref([])
  */
 const selectedPitcherId = ref(null)
 
-/**
- * Full list of all MLB teams, cached after the first API call.
- * Used to populate the opponent selection grid in step 4 and
- * to look up team names for display throughout the wizard.
- */
-const allTeams = ref([])
+/** Era-appropriate teams for the home season, fetched via getAllTeams(season). */
+const homeTeams = ref([])
+/** Era-appropriate teams for the opponent season, fetched via getAllTeams(season). */
+const awayTeams = ref([])
+/** Loading flag while home teams are being fetched. */
+const loadingHomeTeams = ref(false)
+/** Loading flag while away teams are being fetched. */
+const loadingAwayTeams = ref(false)
 
 /**
  * The MLB team ID of the selected opponent (away) team.
@@ -735,6 +764,17 @@ const selectedAwayPitcherId = ref(null)
  */
 const classicMode = ref(false)
 
+/**
+ * Selected weather condition key (e.g., 'clear', 'hot', 'rain').
+ * Auto-set from historical matchup data or manually chosen on step 6.
+ */
+const selectedWeather = ref('clear')
+
+/**
+ * All weather condition keys for the weather picker UI.
+ */
+const weatherKeys = Object.keys(WEATHER_CONDITIONS)
+
 // ============================================================
 // SIMULATION REPLAY STATE
 // Used when the user clicks "Simulate" instead of "Play Ball!"
@@ -776,16 +816,18 @@ const simSpeed = ref(1000)
  */
 const simTimer = ref(null)
 
+/** Whether the bullpen selection modal is visible. */
+const showBullpen = ref(false)
+
 // ============================================================
 // COMPUTED PROPERTIES
 // ============================================================
 
 /**
- * All teams except the user's home team — used for the opponent selection grid.
- * Filters out the home team so the user can't play against themselves.
+ * All away-era teams except the user's home team — used for the opponent selection grid.
  */
 const opponentTeams = computed(() => {
-  return allTeams.value.filter(t => t.id !== teamSelected.value)
+  return awayTeams.value.filter(t => t.id !== teamSelected.value)
 })
 
 /**
@@ -797,29 +839,23 @@ const opponentLeagues = computed(() => {
   const teams = opponentTeams.value
   const al = teams.filter(t => t.league === 'AL')
   const nl = teams.filter(t => t.league === 'NL')
-  const other = teams.filter(t => t.league !== 'AL' && t.league !== 'NL')
+  const nlb = teams.filter(t => t.league === 'NLB')
+  const other = teams.filter(t => t.league !== 'AL' && t.league !== 'NL' && t.league !== 'NLB')
   const result = []
   if (al.length) result.push({ name: 'AL', label: 'American League', teams: al })
   if (nl.length) result.push({ name: 'NL', label: 'National League', teams: nl })
+  if (nlb.length) result.push({ name: 'NLB', label: 'Negro Leagues', teams: nlb })
   if (other.length) result.push({ name: 'other', label: 'Other', teams: other })
   return result
 })
 
-/**
- * Display name for the home team, looked up from the allTeams cache.
- * Falls back to "Your Team" if the team hasn't been loaded yet.
- */
 const homeTeamName = computed(() => {
-  const team = allTeams.value.find(t => t.id === teamSelected.value)
+  const team = homeTeams.value.find(t => t.id === teamSelected.value)
   return team?.name || 'Your Team'
 })
 
-/**
- * Display name for the away team, looked up from the allTeams cache.
- * Falls back to "Opponent" if the team hasn't been loaded yet.
- */
 const awayTeamName = computed(() => {
-  const team = allTeams.value.find(t => t.id === selectedOpponentId.value)
+  const team = awayTeams.value.find(t => t.id === selectedOpponentId.value)
   return team?.name || 'Opponent'
 })
 
@@ -863,28 +899,32 @@ function onToggleSound() {
  * - "Curse Breakers": 2004 Red Sox (broke the Bambino curse) vs 2004 Cardinals
  * - etc.
  */
-const classicMatchups = [
-  { label: 'Crosstown Classic', home: { id: 145, name: 'White Sox', season: 2005, pitcherId: 279824 }, away: { id: 112, name: 'Cubs', season: 2016, pitcherId: 543294 } },
-  { label: "Murder's Row vs Big Red Machine", home: { id: 147, name: 'Yankees', season: 1927, pitcherId: 116241 }, away: { id: 113, name: 'Reds', season: 1975, pitcherId: 115239 } },
-  { label: 'Curse Breakers', home: { id: 111, name: 'Red Sox', season: 2004, pitcherId: 121811 }, away: { id: 138, name: 'Cardinals', season: 2004, pitcherId: 452764 } },
-  { label: 'Dynasty vs 116 Wins', home: { id: 147, name: 'Yankees', season: 1998, pitcherId: 112552 }, away: { id: 136, name: 'Mariners', season: 2001, pitcherId: 114587 } },
-  { label: 'Subway Series', home: { id: 147, name: 'Yankees', season: 2000, pitcherId: 112388 }, away: { id: 121, name: 'Mets', season: 1969, pitcherId: 121961 } },
-  { label: 'Angels in the Outfield', home: { id: 108, name: 'Angels', season: 2002, pitcherId: 132220 }, away: { id: 147, name: 'Yankees', season: 2001, pitcherId: 119608 } },
-  { label: 'Coast to Coast', home: { id: 119, name: 'Dodgers', season: 2020, pitcherId: 621111 }, away: { id: 117, name: 'Astros', season: 2017, pitcherId: 434378 } },
-  { label: 'Bay Bridge Series', home: { id: 137, name: 'Giants', season: 2010, pitcherId: 453311 }, away: { id: 133, name: 'Athletics', season: 1972, pitcherId: 116334 } },
-  { label: 'Amazin\' vs Magnificent', home: { id: 121, name: 'Mets', season: 1986, pitcherId: 114947 }, away: { id: 111, name: 'Red Sox', season: 1986, pitcherId: 112388 } },
-  { label: 'Small Market Royalty', home: { id: 118, name: 'Royals', season: 2015, pitcherId: 450172 }, away: { id: 134, name: 'Pirates', season: 1979, pitcherId: 111952 } },
-  { label: 'Freeway Series', home: { id: 119, name: 'Dodgers', season: 1988, pitcherId: 115861 }, away: { id: 108, name: 'Angels', season: 2002, pitcherId: 132220 } },
-  { label: 'Braves vs Twins', home: { id: 144, name: 'Braves', season: 1995, pitcherId: 118120 }, away: { id: 142, name: 'Twins', season: 1991, pitcherId: 119399 } },
-  { label: 'Sammy Sosa Corked Bat Game', home: { id: 112, name: 'Cubs', season: 2003, pitcherId: 407578 }, away: { id: 139, name: 'Devil Rays', season: 2003, pitcherId: 114928 } },
-  { label: "Don Larsen's Perfect Game", home: { id: 147, name: 'Yankees', season: 1956, pitcherId: 117514 }, away: { id: 119, name: 'Dodgers', season: 1956, pitcherId: 118140 } },
-  { label: "Hank Aaron's 715th Home Run", home: { id: 144, name: 'Braves', season: 1974, pitcherId: 121001 }, away: { id: 119, name: 'Dodgers', season: 1974, pitcherId: 113515 } },
-  { label: "McGwire's 62nd Home Run", home: { id: 138, name: 'Cardinals', season: 1998, pitcherId: 118967 }, away: { id: 112, name: 'Cubs', season: 1998, pitcherId: 123431 } },
-  { label: "Buehrle's Perfect Game", home: { id: 145, name: 'White Sox', season: 2009, pitcherId: 279824 }, away: { id: 139, name: 'Rays', season: 2009, pitcherId: 431148 } },
-  { label: 'Mr. October', home: { id: 147, name: 'Yankees', season: 1977, pitcherId: 123416 }, away: { id: 119, name: 'Dodgers', season: 1977, pitcherId: 116131 } },
-  { label: "Babe Ruth's Called Shot", home: { id: 112, name: 'Cubs', season: 1932, pitcherId: 121440 }, away: { id: 147, name: 'Yankees', season: 1932, pitcherId: 120593 } },
-  { label: "Bill Buckner's Legs", home: { id: 121, name: 'Mets', season: 1986, pitcherId: 119964 }, away: { id: 111, name: 'Red Sox', season: 1986, pitcherId: 112388 } },
-  { label: 'The Sweep', home: { id: 117, name: 'Astros', season: 2005, pitcherId: 407840 }, away: { id: 145, name: 'White Sox', season: 2005, pitcherId: 150119 } },
+const historicalMatchups = [
+  { label: "Babe Ruth's Called Shot", date: 'Oct 1, 1932', stadium: 'Wrigley Field', weather: 'cold', winningPitcher: 'George Pipgras', losingPitcher: 'Charlie Root', home: { id: 112, name: 'Cubs', season: 1932, pitcherId: 121440, pitcherName: 'Charlie Root' }, away: { id: 147, name: 'Yankees', season: 1932, pitcherId: 120593, pitcherName: 'George Pipgras' } },
+  { label: "Don Larsen's Perfect Game", date: 'Oct 8, 1956', stadium: 'Yankee Stadium', weather: 'clear', winningPitcher: 'Don Larsen', losingPitcher: 'Sal Maglie', home: { id: 147, name: 'Yankees', season: 1956, pitcherId: 117514, pitcherName: 'Don Larsen' }, away: { id: 119, name: 'Dodgers', season: 1956, pitcherId: 118140, pitcherName: 'Sal Maglie' } },
+  { label: "Hank Aaron's 715th Home Run", date: 'Apr 8, 1974', stadium: 'Atlanta-Fulton County Stadium', weather: 'clear', winningPitcher: 'Ron Reed', losingPitcher: 'Al Downing', home: { id: 144, name: 'Braves', season: 1974, pitcherId: 121001, pitcherName: 'Ron Reed' }, away: { id: 119, name: 'Dodgers', season: 1974, pitcherId: 113515, pitcherName: 'Al Downing' } },
+  { label: "Mr. October — Reggie's 3HR World Series", date: 'Oct 18, 1977', stadium: 'Yankee Stadium', weather: 'clear', winningPitcher: 'Mike Torrez', losingPitcher: 'Burt Hooton', home: { id: 147, name: 'Yankees', season: 1977, pitcherId: 123416, pitcherName: 'Mike Torrez' }, away: { id: 119, name: 'Dodgers', season: 1977, pitcherId: 116131, pitcherName: 'Burt Hooton' } },
+  { label: "Buckner's Demise", date: 'Oct 25, 1986', stadium: 'Shea Stadium', weather: 'cold', winningPitcher: 'Rick Aguilera', losingPitcher: 'Calvin Schiraldi', home: { id: 121, name: 'Mets', season: 1986, pitcherId: 119964, pitcherName: 'Bob Ojeda' }, away: { id: 111, name: 'Red Sox', season: 1986, pitcherId: 112388, pitcherName: 'Roger Clemens' } },
+  { label: "McGwire's 62nd Home Run", date: 'Sep 8, 1998', stadium: 'Busch Stadium', weather: 'hot', winningPitcher: 'Kent Mercker', losingPitcher: 'Steve Trachsel', home: { id: 138, name: 'Cardinals', season: 1998, pitcherId: 118967, pitcherName: 'Kent Mercker' }, away: { id: 112, name: 'Cubs', season: 1998, pitcherId: 123431, pitcherName: 'Steve Trachsel' } },
+  { label: 'Sammy Sosa Corked Bat Game', date: 'Jun 3, 2003', stadium: 'Wrigley Field', weather: 'wind_out', winningPitcher: 'Mike Remlinger', losingPitcher: 'Al Levine', home: { id: 112, name: 'Cubs', season: 2003, pitcherId: 407578, pitcherName: 'Mark Prior' }, away: { id: 139, name: 'Devil Rays', season: 2003, pitcherId: 114928, pitcherName: 'Geremi Gonzalez' } },
+  { label: 'Game 4 World Series Sweep', date: 'Oct 26, 2005', stadium: 'Minute Maid Park', weather: 'dome', winningPitcher: 'Freddy Garcia', losingPitcher: 'Brad Lidge', home: { id: 117, name: 'Astros', season: 2005, pitcherId: 407840, pitcherName: 'Brandon Backe' }, away: { id: 145, name: 'White Sox', season: 2005, pitcherId: 150119, pitcherName: 'Freddy Garcia' } },
+  { label: "Buehrle's Perfect Game", date: 'Jul 23, 2009', stadium: 'U.S. Cellular Field', weather: 'hot', winningPitcher: 'Mark Buehrle', losingPitcher: 'Scott Kazmir', home: { id: 145, name: 'White Sox', season: 2009, pitcherId: 279824, pitcherName: 'Mark Buehrle' }, away: { id: 139, name: 'Rays', season: 2009, pitcherId: 431148, pitcherName: 'Scott Kazmir' } },
+]
+
+const fantasyMatchups = [
+  { label: 'Crosstown Classic', home: { id: 145, name: 'White Sox', season: 2005, pitcherId: 279824, pitcherName: 'Mark Buehrle' }, away: { id: 112, name: 'Cubs', season: 2016, pitcherId: 543294, pitcherName: 'Kyle Hendricks' } },
+  { label: "Murder's Row vs Big Red Machine", home: { id: 147, name: 'Yankees', season: 1927, pitcherId: 116241, pitcherName: 'Waite Hoyt' }, away: { id: 113, name: 'Reds', season: 1975, pitcherId: 115239, pitcherName: 'Don Gullett' } },
+  { label: 'Curse Breakers', home: { id: 111, name: 'Red Sox', season: 2004, pitcherId: 121811, pitcherName: 'Curt Schilling' }, away: { id: 138, name: 'Cardinals', season: 2004, pitcherId: 452764, pitcherName: 'Chris Carpenter' } },
+  { label: 'Dynasty vs 116 Wins', home: { id: 147, name: 'Yankees', season: 1998, pitcherId: 112552, pitcherName: 'David Cone' }, away: { id: 136, name: 'Mariners', season: 2001, pitcherId: 114587, pitcherName: 'Freddy Garcia' } },
+  { label: 'Subway Series', home: { id: 147, name: 'Yankees', season: 2000, pitcherId: 112388, pitcherName: 'Roger Clemens' }, away: { id: 121, name: 'Mets', season: 1969, pitcherId: 121961, pitcherName: 'Tom Seaver' } },
+  { label: 'Angels in the Outfield', home: { id: 108, name: 'Angels', season: 2002, pitcherId: 132220, pitcherName: 'Jarrod Washburn' }, away: { id: 147, name: 'Yankees', season: 2001, pitcherId: 119608, pitcherName: 'Mike Mussina' } },
+  { label: 'Coast to Coast', home: { id: 119, name: 'Dodgers', season: 2020, pitcherId: 621111, pitcherName: 'Walker Buehler' }, away: { id: 117, name: 'Astros', season: 2017, pitcherId: 434378, pitcherName: 'Justin Verlander' } },
+  { label: 'Bay Bridge Series', home: { id: 137, name: 'Giants', season: 2010, pitcherId: 453311, pitcherName: 'Tim Lincecum' }, away: { id: 133, name: 'Athletics', season: 1972, pitcherId: 116334, pitcherName: 'Catfish Hunter' } },
+  { label: 'Amazin\' vs Magnificent', home: { id: 121, name: 'Mets', season: 1986, pitcherId: 114947, pitcherName: 'Dwight Gooden' }, away: { id: 111, name: 'Red Sox', season: 1986, pitcherId: 112388, pitcherName: 'Roger Clemens' } },
+  { label: 'Small Market Royalty', home: { id: 118, name: 'Royals', season: 2015, pitcherId: 450172, pitcherName: 'Edinson Volquez' }, away: { id: 134, name: 'Pirates', season: 1979, pitcherId: 111952, pitcherName: 'John Candelaria' } },
+  { label: "Bizarro '69 World Series", home: { id: 158, name: 'Pilots', season: 1969, pitcherId: 111279, pitcherName: 'Jim Bouton' }, away: { id: 121, name: 'Mets', season: 1969, pitcherId: 121961, pitcherName: 'Tom Seaver' } },
+  { label: 'Freeway Series', home: { id: 119, name: 'Dodgers', season: 1988, pitcherId: 115861, pitcherName: 'Orel Hershiser' }, away: { id: 108, name: 'Angels', season: 2002, pitcherId: 132220, pitcherName: 'Jarrod Washburn' } },
+  { label: 'Braves vs Twins', home: { id: 144, name: 'Braves', season: 1995, pitcherId: 118120, pitcherName: 'Greg Maddux' }, away: { id: 142, name: 'Twins', season: 1991, pitcherId: 119399, pitcherName: 'Jack Morris' } },
 ]
 
 /**
@@ -934,6 +974,35 @@ const currentBatter = computed(() => {
   return lineup?.[idx] || null
 })
 
+/** Pitch count for the current pitcher on the mound. */
+const currentPitchCount = computed(() => {
+  if (!game.value) return 0
+  return game.value.is_top ? game.value.home_pitch_count : game.value.away_pitch_count
+})
+
+/** Fatigue bar width percentage (0 at 0 pitches, 100% at 120). */
+const fatiguePercent = computed(() => {
+  return Math.min(100, (currentPitchCount.value / 120) * 100)
+})
+
+/** Fatigue level class for color coding the bar. */
+const fatigueLevel = computed(() => {
+  const pc = currentPitchCount.value
+  if (pc >= 100) return 'gassed'
+  if (pc >= 85) return 'tired'
+  return 'fresh'
+})
+
+/** Team ID of the current pitcher (for team logo badge). */
+const currentPitcherTeamId = computed(() =>
+  game.value?.is_top ? teamSelected.value : selectedOpponentId.value
+)
+
+/** Team ID of the current batter (for team logo badge). */
+const currentBatterTeamId = computed(() =>
+  game.value?.is_top ? selectedOpponentId.value : teamSelected.value
+)
+
 // ============================================================
 // UTILITY FUNCTIONS
 // ============================================================
@@ -960,6 +1029,7 @@ function headshotUrl(playerId) {
 
 /** Build the MLB CDN URL for a team's logo SVG. */
 function teamLogoUrl(teamId) {
+  if (teamId >= 1000) return '/negro-leagues-logo.svg'
   return `https://www.mlbstatic.com/team-logos/${teamId}.svg`
 }
 
@@ -988,17 +1058,15 @@ function formatIP(ipOuts) {
  * @param {Object} matchup - Classic matchup config with home/away team data
  */
 async function selectClassicMatchup(matchup) {
-  // Enable classic mode so step 6 shows both pitcher pickers
   classicMode.value = true
-  // Pre-fill all the selections that would normally happen in steps 1-5
+  selectedWeather.value = matchup.weather || 'clear'
   teamSelected.value = matchup.home.id
   selectedSeason.value = matchup.home.season
   selectedOpponentId.value = matchup.away.id
   selectedAwaySeason.value = matchup.away.season
 
-  // Jump directly to step 6 (pitcher selection + start)
-  setupStep.value = 6
-  // Reset pitcher state
+  // Jump directly to step 5 (weather + start), loading pitchers along the way
+  setupStep.value = 5
   loadingPitchers.value = true
   loadingAwayPitchers.value = true
   selectedPitcherId.value = null
@@ -1007,18 +1075,17 @@ async function selectClassicMatchup(matchup) {
   awayPitcherList.value = []
 
   try {
-    // Fetch both pitcher lists AND team list in parallel for speed.
-    // The team list is needed for displaying team names in the header.
-    // If allTeams is already cached from a previous load, skip the API call.
-    const [homePitchers, awayPitchers, teams] = await Promise.all([
+    // Fetch pitcher lists and era-appropriate team lists in parallel
+    const [homePitchers, awayPitchers, hTeams, aTeams] = await Promise.all([
       getTeamPitchers(matchup.home.id, matchup.home.season),
       getTeamPitchers(matchup.away.id, matchup.away.season),
-      allTeams.value.length ? Promise.resolve(allTeams.value) : getAllTeams(),
+      getAllTeams(matchup.home.season),
+      getAllTeams(matchup.away.season),
     ])
-    allTeams.value = teams
+    homeTeams.value = hTeams
+    awayTeams.value = aTeams
     pitcherList.value = homePitchers
     awayPitcherList.value = awayPitchers
-    // Auto-select the specified pitcher if provided, otherwise default to first (best ERA)
     if (matchup.home.pitcherId && homePitchers.some(p => p.id === matchup.home.pitcherId)) {
       selectedPitcherId.value = matchup.home.pitcherId
     } else if (homePitchers.length > 0) {
@@ -1037,13 +1104,11 @@ async function selectClassicMatchup(matchup) {
 
 /**
  * Handle team selection from the TeamSelector component.
- * Sets the home team and advances to step 2 (season selection).
- *
- * @param {number} teamId - The MLB team ID that was clicked
+ * Sets the home team and advances to step 2 (pitcher selection).
  */
 function onTeamSelected(teamId) {
   teamSelected.value = teamId
-  setupStep.value = 2
+  goToStep(2)
 }
 
 /**
@@ -1056,22 +1121,15 @@ function onTeamSelected(teamId) {
  * @param {number} step - The step number to navigate to (1-6)
  */
 async function goToStep(step) {
-  // When entering step 3, fetch the home team's pitchers for the selected season
-  if (step === 3) {
+  // When entering step 2, fetch the home team's pitchers for the selected season
+  if (step === 2) {
     loadingPitchers.value = true
-    selectedPitcherId.value = null   // Reset previous pitcher selection
-    pitcherList.value = []           // Clear previous pitcher list
-    setupStep.value = step           // Show step 3 immediately (with loading state)
+    selectedPitcherId.value = null
+    pitcherList.value = []
+    setupStep.value = step
     try {
-      // Fetch pitchers and team list in parallel.
-      // Team list is needed for the opponent selection grid in step 4.
-      const [pitchers, teams] = await Promise.all([
-        getTeamPitchers(teamSelected.value, selectedSeason.value),
-        allTeams.value.length ? Promise.resolve(allTeams.value) : getAllTeams(),
-      ])
+      const pitchers = await getTeamPitchers(teamSelected.value, selectedSeason.value)
       pitcherList.value = pitchers
-      allTeams.value = teams
-      // Auto-select the first pitcher as a sensible default
       if (pitcherList.value.length > 0) {
         selectedPitcherId.value = pitcherList.value[0].id
       }
@@ -1081,15 +1139,28 @@ async function goToStep(step) {
     return
   }
 
-  // When entering step 6, fetch the away team's pitchers for the selected season
-  if (step === 6) {
+  // When entering step 3, fetch away teams for the default away season
+  if (step === 3) {
+    setupStep.value = step
+    if (!awayTeams.value.length) {
+      loadingAwayTeams.value = true
+      try {
+        awayTeams.value = await getAllTeams(selectedAwaySeason.value)
+      } finally {
+        loadingAwayTeams.value = false
+      }
+    }
+    return
+  }
+
+  // When entering step 4, fetch the away team's pitchers for the selected season
+  if (step === 4) {
     loadingAwayPitchers.value = true
-    selectedAwayPitcherId.value = null  // Reset previous away pitcher selection
-    awayPitcherList.value = []          // Clear previous away pitcher list
-    setupStep.value = step              // Show step 6 immediately (with loading state)
+    selectedAwayPitcherId.value = null
+    awayPitcherList.value = []
+    setupStep.value = step
     try {
       awayPitcherList.value = await getTeamPitchers(selectedOpponentId.value, selectedAwaySeason.value)
-      // Auto-select the first away pitcher
       if (awayPitcherList.value.length > 0) {
         selectedAwayPitcherId.value = awayPitcherList.value[0].id
       }
@@ -1099,7 +1170,6 @@ async function goToStep(step) {
     return
   }
 
-  // For all other steps (2, 4, 5), just change the step number — no data fetching needed
   setupStep.value = step
 }
 
@@ -1112,8 +1182,8 @@ async function goToStep(step) {
  * - All other steps: go to the previous step number
  */
 function goBack() {
-  if (classicMode.value) {
-    // Classic mode skipped steps 2-5, so "back" returns to step 1
+  if (classicMode.value && setupStep.value === 5) {
+    // Classic mode skipped steps 2-4, so "back" from weather returns to step 1
     classicMode.value = false
     teamSelected.value = null
     setupStep.value = 1
@@ -1122,7 +1192,6 @@ function goBack() {
     teamSelected.value = null
     setupStep.value = 1
   } else {
-    // Normal case: go to previous step
     setupStep.value = setupStep.value - 1
   }
 }
@@ -1149,6 +1218,7 @@ async function startGame() {
       awayTeamId: selectedOpponentId.value,
       awaySeason: selectedAwaySeason.value,
       awayPitcherId: selectedAwayPitcherId.value,
+      weather: selectedWeather.value,
     })
   } finally {
     loading.value = false
@@ -1181,6 +1251,7 @@ async function startSimulation() {
       awayTeamId: selectedOpponentId.value,
       awaySeason: selectedAwaySeason.value,
       awayPitcherId: selectedAwayPitcherId.value,
+      weather: selectedWeather.value,
     })
     // Step 2: Run the full simulation locally
     const result = simulateGame(newGame)
@@ -1284,22 +1355,28 @@ onUnmounted(() => {
  * completely fresh experience without any leftover state from the
  * previous game.
  */
-function resetGame() {
-  stopReplayTimer()                       // Stop any running simulation
-  simulating.value = false                // Exit simulation mode
-  simSnapshots.value = []                 // Clear snapshot cache
-  simReplayIndex.value = 0                // Reset replay index
-  classicMode.value = false               // Exit classic mode
-  game.value = null                       // Clear the game state (shows wizard again)
-  setupStep.value = 1                     // Return to step 1
-  teamSelected.value = null               // Clear home team selection
-  selectedSeason.value = 2024             // Reset to default season
-  pitcherList.value = []                  // Clear home pitcher list
-  selectedPitcherId.value = null          // Clear home pitcher selection
-  selectedOpponentId.value = null         // Clear opponent selection
-  selectedAwaySeason.value = 2024         // Reset opponent season
-  awayPitcherList.value = []              // Clear away pitcher list
-  selectedAwayPitcherId.value = null      // Clear away pitcher selection
+async function resetGame() {
+  stopReplayTimer()
+  simulating.value = false
+  simSnapshots.value = []
+  simReplayIndex.value = 0
+  classicMode.value = false
+  game.value = null
+  setupStep.value = 1
+  teamSelected.value = null
+  selectedSeason.value = 2024
+  pitcherList.value = []
+  selectedPitcherId.value = null
+  selectedOpponentId.value = null
+  selectedAwaySeason.value = 2024
+  awayPitcherList.value = []
+  selectedAwayPitcherId.value = null
+  selectedWeather.value = 'clear'
+  awayTeams.value = []
+  loadingHomeTeams.value = false
+  loadingAwayTeams.value = false
+  // Re-fetch teams for default season
+  homeTeams.value = await getAllTeams(2024)
 }
 
 // ============================================================
@@ -1328,6 +1405,17 @@ function doBat(action) {
   game.value = { ...game.value }
 }
 
+/**
+ * Handle the user selecting a relief pitcher from the bullpen modal.
+ */
+function doSwitchPitcher(reliever) {
+  const idx = game.value.home_bullpen.findIndex((p) => p.id === reliever.id)
+  if (idx !== -1) game.value.home_bullpen.splice(idx, 1)
+  switchPitcher(game.value, 'home', reliever)
+  showBullpen.value = false
+  game.value = { ...game.value }
+}
+
 // ============================================================
 // WATCHERS
 // ============================================================
@@ -1351,6 +1439,34 @@ watch(
     }
   }
 )
+
+// When home season changes (step 1), re-fetch era-appropriate teams
+watch(selectedSeason, async (newSeason) => {
+  if (setupStep.value !== 1) return
+  loadingHomeTeams.value = true
+  try {
+    homeTeams.value = await getAllTeams(newSeason)
+  } finally {
+    loadingHomeTeams.value = false
+  }
+})
+
+// When away season changes (step 3), re-fetch era-appropriate opponent teams
+watch(selectedAwaySeason, async (newSeason) => {
+  if (setupStep.value !== 3) return
+  loadingAwayTeams.value = true
+  selectedOpponentId.value = null // Clear selection since team list is changing
+  try {
+    awayTeams.value = await getAllTeams(newSeason)
+  } finally {
+    loadingAwayTeams.value = false
+  }
+})
+
+// Fetch teams for the default season on mount
+onMounted(async () => {
+  homeTeams.value = await getAllTeams(selectedSeason.value)
+})
 
 </script>
 
@@ -1406,6 +1522,56 @@ watch(
 /* Red border highlight on hover for the season dropdown */
 .season-select select:hover {
   border-color: #e94560;
+}
+
+/* ========== Season Hero (Step 1) ========== */
+.season-hero {
+  text-align: center;
+  padding: 28px 20px 20px;
+  margin-bottom: 12px;
+  background: linear-gradient(180deg, #1a1a2e 0%, transparent 100%);
+  border-bottom: 1px solid #333;
+}
+
+.season-hero-title {
+  font-size: 28px;
+  color: #ffdd00;
+  margin: 0 0 4px 0;
+  letter-spacing: 1px;
+}
+
+.season-hero-sub {
+  font-size: 14px;
+  color: #aaa;
+  margin: 0 0 16px 0;
+}
+
+.season-hero-dropdown {
+  background: #0f3460;
+  color: #ffdd00;
+  border: 2px solid #ffdd00;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 24px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  min-width: 160px;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.season-hero-dropdown:hover {
+  background: #1a4a7a;
+  border-color: #e94560;
+  color: #fff;
+}
+
+.season-hero-loading {
+  display: block;
+  color: #888;
+  font-size: 13px;
+  margin-top: 8px;
 }
 
 /* ========== Skip Button ========== */
@@ -2007,6 +2173,7 @@ watch(
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
+  margin-top: 32px;
 }
 
 /*
@@ -2125,20 +2292,20 @@ watch(
 
 /* Individual matchup card — left-aligned text for readability of longer labels */
 .matchup-card {
-  background: #3a3a4a;
+  background: #ffffff;
   border: 2px solid #555;
   border-radius: 8px;
   padding: 12px;
   cursor: pointer;
   transition: all 0.2s;
   text-align: left;
-  color: #e0e0e0;
+  color: #222;
 }
 
 /* Matchup card hover: red border + subtle lift */
 .matchup-card:hover {
   border-color: #e94560;
-  background: #4a4a5a;
+  background: #f0f0f0;
   transform: translateY(-1px);
 }
 
@@ -2158,7 +2325,7 @@ watch(
 
 .matchup-vs {
   font-size: 11px;
-  color: #666;
+  color: #999;
   text-transform: uppercase;
 }
 
@@ -2169,10 +2336,201 @@ watch(
   margin-bottom: 4px;
 }
 
+/* Matchup date and stadium for historical games */
+.matchup-date {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
 /* Matchup teams description (e.g., "2005 White Sox vs 2016 Cubs") — gray secondary text */
 .matchup-teams {
   font-size: 12px;
+  color: #555;
+}
+
+/* Starting pitcher names on matchup cards */
+.matchup-pitchers {
+  font-size: 11px;
+  color: #c0392b;
+  margin-top: 2px;
+}
+
+.matchup-decision {
+  font-size: 10px;
+  color: #666;
+  margin-top: 3px;
+}
+
+.decision-w {
+  color: #4caf50;
+}
+
+.decision-l {
+  color: #ef5350;
+}
+
+/* ========== Headshot Wrapper + Team Badge ========== */
+.headshot-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.player-team-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #1a1a2e;
+  background: #1a1a2e;
+}
+
+/* ========== Fatigue Meter ========== */
+.fatigue-meter {
+  width: 100%;
+  margin-top: 4px;
+  text-align: center;
+}
+
+.pitch-count {
+  font-size: 10px;
   color: #aaa;
+}
+
+.fatigue-bar {
+  width: 100%;
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
+  margin-top: 2px;
+  overflow: hidden;
+}
+
+.fatigue-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s, background 0.3s;
+}
+
+.fatigue-fill.fresh {
+  background: #4caf50;
+}
+
+.fatigue-fill.tired {
+  background: #ff9800;
+}
+
+.fatigue-fill.gassed {
+  background: #e94560;
+}
+
+/* ========== Bullpen Controls ========== */
+.bullpen-controls {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.change-pitcher-btn {
+  background: #3a3a4a;
+  color: #ff9800;
+  border: 1px solid #ff9800;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.change-pitcher-btn:hover {
+  background: #ff9800;
+  color: #0a0a1a;
+}
+
+.bullpen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.bullpen-modal {
+  background: #1a1a2e;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 280px;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.bullpen-title {
+  color: #ff9800;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 12px 0;
+  text-align: center;
+}
+
+.bullpen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bullpen-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #3a3a4a;
+  border: 2px solid #333;
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: #e0e0e0;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  font-size: 14px;
+}
+
+.bullpen-option:hover {
+  border-color: #ff9800;
+  background: #4a4a5a;
+}
+
+.bullpen-name {
+  font-weight: bold;
+}
+
+.bullpen-stats {
+  font-size: 12px;
+  color: #888;
+}
+
+.bullpen-cancel {
+  display: block;
+  margin: 12px auto 0;
+  background: none;
+  border: 1px solid #555;
+  color: #aaa;
+  padding: 6px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.bullpen-cancel:hover {
+  border-color: #e94560;
+  color: #e0e0e0;
 }
 
 /* ========== Mobile Responsive ========== */
@@ -2275,5 +2633,103 @@ watch(
     font-size: 13px;
     padding: 8px 10px;
   }
+
+  .weather-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .weather-card {
+    padding: 6px 4px;
+  }
+
+  .weather-icon {
+    font-size: 18px;
+  }
+}
+
+/* ========== Weather Picker (Step 5) ========== */
+.weather-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 32px auto 40px;
+  padding: 0 16px;
+}
+
+.weather-selection p {
+  margin-bottom: 16px;
+  font-weight: bold;
+  color: #ccc;
+  font-size: 15px;
+}
+
+.weather-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  max-width: 640px;
+  width: 100%;
+}
+
+.weather-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: #1a1a2e;
+  border: 2px solid #333;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  color: #ccc;
+}
+
+.weather-card:hover {
+  border-color: #666;
+  background: #222244;
+}
+
+.weather-card.selected {
+  border-color: #e94560;
+  background: #2a1a2e;
+}
+
+.weather-icon {
+  font-size: 24px;
+}
+
+.weather-label {
+  font-size: 13px;
+  font-weight: bold;
+  color: #eee;
+}
+
+.weather-detail {
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+}
+
+/* ========== Weather Banner (Active Game) ========== */
+.weather-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: #1a1a2e;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #ccc;
+}
+
+.weather-banner-icon {
+  font-size: 16px;
+}
+
+.weather-banner-text {
+  font-size: 13px;
 }
 </style>

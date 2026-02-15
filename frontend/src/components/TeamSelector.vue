@@ -47,72 +47,46 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { getAllTeams } from '../services/mlbApi.js'
 
-/**
- * Declare the events this component can emit.
- * 'teamSelected' is fired when a user clicks a team card,
- * passing the team's numeric ID as the payload.
- */
+const props = defineProps({
+  teams: { type: Array, default: null },
+})
+
 defineEmits(['teamSelected'])
 
-/** Build the MLB CDN URL for a team's logo SVG using their numeric team ID. */
 function logoUrl(teamId) {
+  if (teamId >= 1000) return '/negro-leagues-logo.svg'
   return `https://www.mlbstatic.com/team-logos/${teamId}.svg`
 }
 
-/**
- * Reactive array holding all teams fetched from the API.
- * Each team object has: id, name, abbreviation, league (AL/NL).
- */
-const teams = ref([])
-
-/**
- * Loading flag — true while the API call is in flight.
- * Controls whether the "Loading teams..." message is shown.
- */
+const internalTeams = ref([])
 const loading = ref(false)
-
-/**
- * Error message — set if the API call to fetch teams fails.
- * Displayed as a red error banner in the template.
- */
 const error = ref(null)
 
-/**
- * Computed property that groups the flat teams array into league sections.
- *
- * WHY: The UI displays teams organized by league (American League, National League)
- * rather than a flat alphabetical list. This makes it easier for baseball fans
- * to find their team since they already know which league it belongs to.
- *
- * The "Other" bucket handles any edge-case teams that don't have a league set,
- * though in practice all MLB teams should be AL or NL.
- *
- * @returns {Array} Array of { name, label, teams } objects for each league group
- */
+// Use prop teams when provided, otherwise use internally fetched teams
+const teams = computed(() => props.teams && props.teams.length ? props.teams : internalTeams.value)
+
 const leagues = computed(() => {
-  const al = teams.value.filter(t => t.league === 'AL')     // American League teams
-  const nl = teams.value.filter(t => t.league === 'NL')     // National League teams
-  const other = teams.value.filter(t => t.league !== 'AL' && t.league !== 'NL')  // Fallback bucket
+  const al = teams.value.filter(t => t.league === 'AL')
+  const nl = teams.value.filter(t => t.league === 'NL')
+  const nlb = teams.value.filter(t => t.league === 'NLB')
+  const other = teams.value.filter(t => t.league !== 'AL' && t.league !== 'NL' && t.league !== 'NLB')
   const result = []
   if (al.length) result.push({ name: 'AL', label: 'American League', teams: al })
   if (nl.length) result.push({ name: 'NL', label: 'National League', teams: nl })
+  if (nlb.length) result.push({ name: 'NLB', label: 'Negro Leagues', teams: nlb })
   if (other.length) result.push({ name: 'other', label: 'Other', teams: other })
   return result
 })
 
-/**
- * On mount, fetch all teams from the backend API.
- * Uses try/catch/finally to ensure loading state is always cleaned up,
- * even if the request fails. A failed load still allows the user to
- * proceed via the "Skip" button in the parent component.
- */
+// Only self-fetch when no teams prop is provided (backward compat)
 onMounted(async () => {
+  if (props.teams && props.teams.length) return
   loading.value = true
   try {
-    teams.value = await getAllTeams()
+    internalTeams.value = await getAllTeams()
   } catch (e) {
     error.value = 'Failed to load teams. You can still play without team selection.'
   } finally {

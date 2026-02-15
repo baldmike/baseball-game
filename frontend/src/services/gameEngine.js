@@ -5,6 +5,7 @@
 
 import * as mlbApi from './mlbApi.js'
 import { cpuDecidesSwing, cpuPicksPitch, determineOutcome } from './probabilities.js'
+import { WEATHER_CONDITIONS } from './weather.js'
 
 const TOTAL_INNINGS = 9
 const HIT_TYPES = new Set(['single', 'double', 'triple', 'homerun'])
@@ -43,6 +44,11 @@ function _emptyState() {
     home_box_score: [],
     away_pitcher_stats: null,
     home_pitcher_stats: null,
+    weather: null,
+    home_pitch_count: 0,
+    away_pitch_count: 0,
+    home_bullpen: [],
+    away_bullpen: [],
   }
 }
 
@@ -227,6 +233,9 @@ function _recordHit(state, hitType) {
 }
 
 function _applyOutcome(state, outcome, msg) {
+  if (state.is_top) state.home_pitch_count += 1
+  else state.away_pitch_count += 1
+
   state.play_log.push(msg)
   state.last_play = msg
 
@@ -284,7 +293,35 @@ function _snapshot(state) {
     home_box_score: state.home_box_score.map((b) => ({ ...b })),
     away_pitcher_stats: state.away_pitcher_stats ? { ...state.away_pitcher_stats } : null,
     home_pitcher_stats: state.home_pitcher_stats ? { ...state.home_pitcher_stats } : null,
+    weather: state.weather,
+    home_pitch_count: state.home_pitch_count,
+    away_pitch_count: state.away_pitch_count,
+    home_bullpen: state.home_bullpen.map((p) => ({ ...p })),
+    away_bullpen: state.away_bullpen.map((p) => ({ ...p })),
   }
+}
+
+/**
+ * Switch the current pitcher for a given side ('home' or 'away').
+ * Resets pitch count, initializes new pitcher stats, logs the change.
+ */
+export function switchPitcher(state, side, newPitcher) {
+  const oldPitcher = state[side + '_pitcher']
+  state[side + '_pitcher'] = newPitcher
+  state[side + '_pitch_count'] = 0
+  state[side + '_pitcher_stats'] = {
+    id: newPitcher.id,
+    name: newPitcher.name,
+    ip_outs: 0,
+    h: 0,
+    r: 0,
+    er: 0,
+    bb: 0,
+    so: 0,
+  }
+  const msg = `Pitching change: ${newPitcher.name} replaces ${oldPitcher?.name || 'pitcher'}`
+  state.play_log.push(msg)
+  state.last_play = msg
 }
 
 // ============================================================
@@ -302,9 +339,11 @@ export async function createNewGame({
   awayTeamId = null,
   awaySeason = null,
   awayPitcherId = null,
+  weather = null,
 } = {}) {
   const state = _emptyState()
   state.game_id = crypto.randomUUID()
+  state.weather = weather || 'clear'
 
   if (homeTeamId) {
     try {
@@ -335,22 +374,28 @@ export async function createNewGame({
         state.home_lineup = homeLineup
         state.away_lineup = awayLineup
 
-        // Fetch pitchers
+        // Fetch pitchers and build bullpens
+        const [homePitchers, awayPitchers] = await Promise.all([
+          mlbApi.getTeamPitchers(homeTeamId, season),
+          mlbApi.getTeamPitchers(opponent.id, oppSeason),
+        ])
+
         if (homePitcherId) {
-          const pitchers = await mlbApi.getTeamPitchers(homeTeamId, season)
-          const chosen = pitchers.find((p) => p.id === homePitcherId)
-          state.home_pitcher = chosen || await mlbApi.getTeamPitcher(homeTeamId, season)
+          const chosen = homePitchers.find((p) => p.id === homePitcherId)
+          state.home_pitcher = chosen || homePitchers[0] || await mlbApi.getTeamPitcher(homeTeamId, season)
         } else {
-          state.home_pitcher = await mlbApi.getTeamPitcher(homeTeamId, season)
+          state.home_pitcher = homePitchers[0] || await mlbApi.getTeamPitcher(homeTeamId, season)
         }
 
         if (awayPitcherId) {
-          const pitchers = await mlbApi.getTeamPitchers(opponent.id, oppSeason)
-          const chosen = pitchers.find((p) => p.id === awayPitcherId)
-          state.away_pitcher = chosen || await mlbApi.getTeamPitcher(opponent.id, oppSeason)
+          const chosen = awayPitchers.find((p) => p.id === awayPitcherId)
+          state.away_pitcher = chosen || awayPitchers[0] || await mlbApi.getTeamPitcher(opponent.id, oppSeason)
         } else {
-          state.away_pitcher = await mlbApi.getTeamPitcher(opponent.id, oppSeason)
+          state.away_pitcher = awayPitchers[0] || await mlbApi.getTeamPitcher(opponent.id, oppSeason)
         }
+
+        state.home_bullpen = homePitchers.filter((p) => p.id !== state.home_pitcher.id)
+        state.away_bullpen = awayPitchers.filter((p) => p.id !== state.away_pitcher.id)
 
         _getCurrentBatter(state)
 
@@ -370,7 +415,9 @@ export async function createNewGame({
           }
         }
 
-        const msg = `Play Ball! You're the ${homeTeam.name} vs the ${opponent.name}!`
+        const weatherInfo = WEATHER_CONDITIONS[state.weather]
+        const weatherStr = weatherInfo ? ` Conditions: ${weatherInfo.label} (${weatherInfo.temp})` : ''
+        const msg = `Play Ball! You're the ${homeTeam.name} vs the ${opponent.name}!${weatherStr}`
         state.play_log.push(msg)
         state.last_play = msg
         return state
@@ -400,7 +447,7 @@ export function processPitch(state, pitchType) {
   const pitcherStats = pitcher?.stats || null
 
   const swings = cpuDecidesSwing()
-  const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats)
+  const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.home_pitch_count)
   const actionStr = swings ? 'swings' : 'takes'
   const msg = `You throw a ${pitchType}. ${batterName} ${actionStr}: ${_formatOutcome(outcome)}!`
   _applyOutcome(state, outcome, msg)
@@ -415,6 +462,11 @@ export function processAtBat(state, action) {
     return state
   }
 
+  // CPU auto-replaces its pitcher when fatigued
+  if (state.away_pitch_count >= 100 && state.away_bullpen.length > 0) {
+    switchPitcher(state, 'away', state.away_bullpen.shift())
+  }
+
   const batter = _getCurrentBatter(state)
   const playerStats = batter?.stats || null
   const pitcher = state.away_pitcher
@@ -422,7 +474,7 @@ export function processAtBat(state, action) {
 
   const pitchType = cpuPicksPitch()
   const swings = action === 'swing'
-  const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats)
+  const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count)
   const actionStr = swings ? 'swing' : 'take'
   const msg = `Pitcher throws a ${pitchType}. You ${actionStr}: ${_formatOutcome(outcome)}!`
   _applyOutcome(state, outcome, msg)
@@ -441,6 +493,10 @@ export function simulateGame(state) {
     iteration++
 
     if (state.player_role === 'pitching') {
+      // CPU auto-replaces home pitcher when fatigued
+      if (state.home_pitch_count >= 100 && state.home_bullpen.length > 0) {
+        switchPitcher(state, 'home', state.home_bullpen.shift())
+      }
       const batter = _getCurrentBatter(state)
       const playerStats = batter?.stats || null
       const batterName = batter?.name || 'Batter'
@@ -449,11 +505,15 @@ export function simulateGame(state) {
 
       const pitchType = cpuPicksPitch()
       const swings = cpuDecidesSwing()
-      const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats)
+      const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.home_pitch_count)
       const actionStr = swings ? 'swings' : 'takes'
       const msg = `You throw a ${pitchType}. ${batterName} ${actionStr}: ${_formatOutcome(outcome)}!`
       _applyOutcome(state, outcome, msg)
     } else {
+      // CPU auto-replaces away pitcher when fatigued
+      if (state.away_pitch_count >= 100 && state.away_bullpen.length > 0) {
+        switchPitcher(state, 'away', state.away_bullpen.shift())
+      }
       const batter = _getCurrentBatter(state)
       const playerStats = batter?.stats || null
       const pitcher = state.away_pitcher
@@ -461,7 +521,7 @@ export function simulateGame(state) {
 
       const pitchType = cpuPicksPitch()
       const swings = cpuDecidesSwing()
-      const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats)
+      const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count)
       const actionStr = swings ? 'swing' : 'take'
       const msg = `Pitcher throws a ${pitchType}. You ${actionStr}: ${_formatOutcome(outcome)}!`
       _applyOutcome(state, outcome, msg)

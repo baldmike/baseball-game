@@ -184,6 +184,7 @@ const props = defineProps({
 
 /** Build the MLB CDN URL for a team's logo SVG. */
 function logoUrl(teamId) {
+  if (teamId >= 1000) return '/negro-leagues-logo.svg'
   return `https://www.mlbstatic.com/team-logos/${teamId}.svg`
 }
 

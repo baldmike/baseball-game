@@ -6,6 +6,7 @@
  */
 
 import { calculateAdjustedOutcomes, calculateAdjustedTakeOutcomes } from './statsCalculator.js'
+import { applyWeatherModifiers } from './weather.js'
 
 // CPU pitch type selection weights (~50% fastball, matching real MLB usage)
 export const CPU_PITCH_WEIGHTS = {
@@ -105,12 +106,33 @@ export function weightedChoice(weights) {
 }
 
 /**
+ * Apply fatigue modifiers based on pitch count.
+ * Fatigue kicks in after 85 pitches, increasing hit/walk probability.
+ */
+export function applyFatigueMod(table, pitchCount) {
+  if (pitchCount < 85) return table
+  let factor
+  if (pitchCount < 100) factor = 1.08
+  else if (pitchCount < 115) factor = 1.18
+  else factor = 1.28
+  const adjusted = { ...table }
+  if (adjusted.homerun) adjusted.homerun *= factor
+  if (adjusted.double) adjusted.double *= factor
+  if (adjusted.single) adjusted.single *= factor
+  if (adjusted.ball) adjusted.ball *= factor
+  if (adjusted.strike_swinging) adjusted.strike_swinging /= factor
+  return adjusted
+}
+
+/**
  * Given a pitch type and whether the batter swings, return the outcome.
  * Optionally adjusts weights based on real player/pitcher stats.
  */
-export function determineOutcome(pitchType, swings, playerStats = null, pitcherStats = null) {
+export function determineOutcome(pitchType, swings, playerStats = null, pitcherStats = null, weather = null, pitchCount = 0) {
   if (swings) {
     let table = { ...SWING_OUTCOMES[pitchType] }
+    if (weather) table = applyWeatherModifiers(table, weather)
+    if (pitchCount) table = applyFatigueMod(table, pitchCount)
     if (playerStats) {
       table = calculateAdjustedOutcomes(table, playerStats, pitcherStats)
     } else if (pitcherStats) {
@@ -123,6 +145,8 @@ export function determineOutcome(pitchType, swings, playerStats = null, pitcherS
     return weightedChoice(table)
   } else {
     let table = { ...TAKE_OUTCOMES[pitchType] }
+    if (weather) table = applyWeatherModifiers(table, weather)
+    if (pitchCount) table = applyFatigueMod(table, pitchCount)
     if (pitcherStats) {
       table = calculateAdjustedTakeOutcomes(table, pitcherStats)
     }

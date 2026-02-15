@@ -104,18 +104,29 @@ export async function getPlayByPlay(gamePk) {
   }
 }
 
-/** Return list of all 30 MLB teams with id, name, and abbreviation. */
-export async function getAllTeams() {
+/** Return list of MLB teams with id, name, and abbreviation. Optionally filter by season. */
+export async function getAllTeams(season = null) {
   try {
-    const data = await mlbFetch('/api/v1/teams?sportIds=1')
+    const seasonParam = season ? `&season=${season}` : ''
+    const data = await mlbFetch(`/api/v1/teams?sportIds=1${seasonParam}`)
     const teams = []
     for (const team of data.teams || []) {
       const leagueName = team.league?.name || ''
+      let league
+      if (leagueName.includes('Negro') || leagueName.includes('East-West')) {
+        league = 'NLB'
+      } else if (leagueName.includes('American')) {
+        league = 'AL'
+      } else if (leagueName.includes('National')) {
+        league = 'NL'
+      } else {
+        league = ''
+      }
       teams.push({
         id: team.id,
         name: team.name,
         abbreviation: team.abbreviation || '',
-        league: leagueName.includes('American') ? 'AL' : leagueName.includes('National') ? 'NL' : '',
+        league,
       })
     }
     teams.sort((a, b) => a.name.localeCompare(b.name))

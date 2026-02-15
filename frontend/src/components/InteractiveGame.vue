@@ -1027,7 +1027,7 @@ const historicalMatchups = [
 
 const fantasyMatchups = [
   { label: 'Crosstown Classic', home: { id: 145, name: 'White Sox', season: 2005, pitcherId: 279824, pitcherName: 'Mark Buehrle' }, away: { id: 112, name: 'Cubs', season: 2016, pitcherId: 543294, pitcherName: 'Kyle Hendricks' } },
-  { label: "Murderer's Row vs Rookie Ichiro", home: { id: 147, name: 'Yankees', season: 1927, pitcherId: 116241, pitcherName: 'Waite Hoyt' }, away: { id: 136, name: 'Mariners', season: 2001, pitcherId: 114587, pitcherName: 'Freddy Garcia' } },
+  { label: "Murderer's Row vs Rookie Ichiro 116", home: { id: 147, name: 'Yankees', season: 1927, pitcherId: 116241, pitcherName: 'Waite Hoyt' }, away: { id: 136, name: 'Mariners', season: 2001, pitcherId: 114587, pitcherName: 'Freddy Garcia' } },
   { label: 'Curse Breakers', home: { id: 111, name: 'Red Sox', season: 2004, pitcherId: 121811, pitcherName: 'Curt Schilling' }, away: { id: 138, name: 'Cardinals', season: 2004, pitcherId: 452764, pitcherName: 'Chris Carpenter' } },
   { label: 'Dynasty vs 116 Wins', home: { id: 147, name: 'Yankees', season: 1998, pitcherId: 112552, pitcherName: 'David Cone' }, away: { id: 136, name: 'Mariners', season: 2001, pitcherId: 114587, pitcherName: 'Freddy Garcia' } },
   { label: 'Subway Series', home: { id: 147, name: 'Yankees', season: 2000, pitcherId: 112388, pitcherName: 'Roger Clemens' }, away: { id: 121, name: 'Mets', season: 1969, pitcherId: 121961, pitcherName: 'Tom Seaver' } },

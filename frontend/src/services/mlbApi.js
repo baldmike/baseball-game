@@ -316,6 +316,17 @@ export async function getTeamPitcher(teamId, season = 2024) {
   return pitchers.length ? pitchers[0] : defaultPitcher
 }
 
+/** Fetch a team's home venue for a given season. */
+export async function getTeamVenue(teamId, season) {
+  try {
+    const data = await mlbFetch(`/api/v1/teams/${teamId}?hydrate=venue&season=${season}`)
+    const team = data.teams?.[0]
+    return team?.venue ? { id: team.venue.id, name: team.venue.name } : null
+  } catch {
+    return null
+  }
+}
+
 /** Pick a random team that isn't the player's team. */
 export async function getRandomOpponent(excludeTeamId) {
   const teams = await getAllTeams()

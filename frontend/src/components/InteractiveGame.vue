@@ -264,6 +264,22 @@
         <h3 class="step-label">Game Day Weather</h3>
       </div>
 
+      <div class="venue-selection" v-if="homeVenue || awayVenue">
+        <p>Choose the ballpark:</p>
+        <div class="venue-grid">
+          <button class="venue-card" :class="{ selected: selectedVenue === homeVenue?.name }"
+                  @click="selectedVenue = homeVenue?.name" v-if="homeVenue">
+            <span class="venue-name">{{ homeVenue.name }}</span>
+            <span class="venue-team">{{ homeTeamName }} ({{ selectedSeason }})</span>
+          </button>
+          <button class="venue-card" :class="{ selected: selectedVenue === awayVenue?.name }"
+                  @click="selectedVenue = awayVenue?.name" v-if="awayVenue && awayVenue.name !== homeVenue?.name">
+            <span class="venue-name">{{ awayVenue.name }}</span>
+            <span class="venue-team">{{ awayTeamName }} ({{ selectedAwaySeason }})</span>
+          </button>
+        </div>
+      </div>
+
       <div class="weather-selection">
         <p>Choose the conditions:</p>
         <div class="weather-grid">
@@ -342,8 +358,9 @@
       -->
       <div class="matchup-title">
         <span v-if="classicLabel" class="classic-label">{{ classicLabel }}</span>
-        {{ game.away_team || 'Away' }} @ {{ game.home_team || 'Home' }}
+        {{ selectedAwaySeason }} {{ game.away_team || 'Away' }} @ {{ selectedSeason }} {{ game.home_team || 'Home' }}
       </div>
+      <div class="venue-label" v-if="selectedVenue">{{ selectedVenue }}</div>
 
       <Scoreboard
         :away-score="game.away_score"
@@ -459,6 +476,7 @@
           <!-- Skip to End: stops the timer and jumps to the last snapshot -->
           <button class="action-btn speed-btn skip" @click="skipToEnd()">Skip to End</button>
         </div>
+        <button class="action-btn takeover-btn" @click="takeOverGame()">Take Over &amp; Play</button>
       </div>
 
       <!--
@@ -525,16 +543,29 @@
         <div v-if="game.player_role === 'batting'" class="bat-controls">
           <div class="mode-label">You're Batting — Swing or take?</div>
           <div class="button-group">
-            <!-- Swing: attempt to hit the pitch -->
             <button class="action-btn swing-btn" @click="doBat('swing')" :disabled="loading">
               Swing!
             </button>
-            <!-- Take: watch the pitch go by (hoping for a ball call) -->
             <button class="action-btn take-btn" @click="doBat('take')" :disabled="loading">
               Take
             </button>
           </div>
+          <div v-if="canSteal" class="button-group steal-group">
+            <button
+              v-if="game.bases[0] && !game.bases[1]"
+              class="action-btn steal-btn"
+              @click="doSteal(0)"
+              :disabled="loading"
+            >Steal 2nd</button>
+            <button
+              v-if="game.bases[1] && !game.bases[2]"
+              class="action-btn steal-btn"
+              @click="doSteal(1)"
+              :disabled="loading"
+            >Steal 3rd</button>
+          </div>
         </div>
+        <button class="action-btn sim-rest-btn" @click="simulateRest()" :disabled="loading">Simulate Rest of Game</button>
       </div>
 
       <!--
@@ -586,6 +617,7 @@
                 <th>RBI</th>
                 <th>BB</th>
                 <th>SO</th>
+                <th>SB</th>
               </tr>
             </thead>
             <tbody>
@@ -605,6 +637,7 @@
                 <td>{{ p.rbi }}</td>
                 <td>{{ p.bb }}</td>
                 <td>{{ p.so }}</td>
+                <td>{{ p.sb }}</td>
               </tr>
             </tbody>
           </table>
@@ -627,6 +660,7 @@
                 <th>RBI</th>
                 <th>BB</th>
                 <th>SO</th>
+                <th>SB</th>
               </tr>
             </thead>
             <tbody>
@@ -646,6 +680,7 @@
                 <td>{{ p.rbi }}</td>
                 <td>{{ p.bb }}</td>
                 <td>{{ p.so }}</td>
+                <td>{{ p.sb }}</td>
               </tr>
             </tbody>
           </table>
@@ -699,8 +734,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { createNewGame, simulateGame, processPitch, processAtBat, switchPitcher } from '../services/gameEngine.js'
-import { getAllTeams, getTeamPitchers } from '../services/mlbApi.js'
+import { createNewGame, simulateGame, processPitch, processAtBat, switchPitcher, attemptSteal } from '../services/gameEngine.js'
+import { getAllTeams, getTeamPitchers, getTeamVenue } from '../services/mlbApi.js'
 import { WEATHER_CONDITIONS } from '../services/weather.js'
 import { useSoundEffects } from '../composables/useSoundEffects.js'
 import BaseballDiamond from './BaseballDiamond.vue'
@@ -842,6 +877,17 @@ const classicMatchupData = ref(null)
 const selectedWeather = ref('clear')
 
 /**
+ * Selected venue name displayed during gameplay.
+ */
+const selectedVenue = ref('')
+
+/**
+ * Home and away team venue objects ({ id, name }) fetched from API.
+ */
+const homeVenue = ref(null)
+const awayVenue = ref(null)
+
+/**
  * All weather condition keys for the weather picker UI.
  */
 const weatherKeys = Object.keys(WEATHER_CONDITIONS)
@@ -980,11 +1026,13 @@ const historicalMatchups = [
   { label: 'Sammy Sosa Corked Bat Game', date: 'Jun 3, 2003', stadium: 'Wrigley Field', weather: 'wind_out', winningPitcher: 'Mike Remlinger', losingPitcher: 'Al Levine', home: { id: 112, name: 'Cubs', season: 2003, pitcherId: 407578, pitcherName: 'Mark Prior' }, away: { id: 139, name: 'Devil Rays', season: 2003, pitcherId: 114928, pitcherName: 'Geremi Gonzalez' } },
   { label: 'Game 4 World Series Sweep', date: 'Oct 26, 2005', stadium: 'Minute Maid Park', weather: 'dome', winningPitcher: 'Freddy Garcia', losingPitcher: 'Brad Lidge', home: { id: 117, name: 'Astros', season: 2005, pitcherId: 407840, pitcherName: 'Brandon Backe' }, away: { id: 145, name: 'White Sox', season: 2005, pitcherId: 150119, pitcherName: 'Freddy Garcia' } },
   { label: "Buehrle's Perfect Game", date: 'Jul 23, 2009', stadium: 'U.S. Cellular Field', weather: 'hot', winningPitcher: 'Mark Buehrle', losingPitcher: 'Scott Kazmir', home: { id: 145, name: 'White Sox', season: 2009, pitcherId: 279824, pitcherName: 'Mark Buehrle' }, away: { id: 139, name: 'Rays', season: 2009, pitcherId: 431148, pitcherName: 'Scott Kazmir' } },
+  { label: "Dock Ellis: Just Say No-No", date: 'Jun 12, 1970', stadium: 'San Diego Stadium', weather: 'clear', winningPitcher: 'Dock Ellis', losingPitcher: 'Dave Roberts', home: { id: 135, name: 'Padres', season: 1970, pitcherId: 121276, pitcherName: 'Dave Roberts' }, away: { id: 134, name: 'Pirates', season: 1970, pitcherId: 113815, pitcherName: 'Dock Ellis' } },
+  { label: 'History on September 1st, 1971', date: 'Sep 1, 1971', stadium: 'Three Rivers Stadium', weather: 'clear', winningPitcher: 'Dock Ellis', losingPitcher: 'Woodie Fryman', home: { id: 134, name: 'Pirates', season: 1971, pitcherId: 113815, pitcherName: 'Dock Ellis' }, away: { id: 143, name: 'Phillies', season: 1971, pitcherId: 114466, pitcherName: 'Woodie Fryman' } },
 ]
 
 const fantasyMatchups = [
   { label: 'Crosstown Classic', home: { id: 145, name: 'White Sox', season: 2005, pitcherId: 279824, pitcherName: 'Mark Buehrle' }, away: { id: 112, name: 'Cubs', season: 2016, pitcherId: 543294, pitcherName: 'Kyle Hendricks' } },
-  { label: "Murder's Row vs Big Red Machine", home: { id: 147, name: 'Yankees', season: 1927, pitcherId: 116241, pitcherName: 'Waite Hoyt' }, away: { id: 113, name: 'Reds', season: 1975, pitcherId: 115239, pitcherName: 'Don Gullett' } },
+  { label: "Murderer's Row vs Rookie Ichiro", home: { id: 147, name: 'Yankees', season: 1927, pitcherId: 116241, pitcherName: 'Waite Hoyt' }, away: { id: 136, name: 'Mariners', season: 2001, pitcherId: 114587, pitcherName: 'Freddy Garcia' } },
   { label: 'Curse Breakers', home: { id: 111, name: 'Red Sox', season: 2004, pitcherId: 121811, pitcherName: 'Curt Schilling' }, away: { id: 138, name: 'Cardinals', season: 2004, pitcherId: 452764, pitcherName: 'Chris Carpenter' } },
   { label: 'Dynasty vs 116 Wins', home: { id: 147, name: 'Yankees', season: 1998, pitcherId: 112552, pitcherName: 'David Cone' }, away: { id: 136, name: 'Mariners', season: 2001, pitcherId: 114587, pitcherName: 'Freddy Garcia' } },
   { label: 'Subway Series', home: { id: 147, name: 'Yankees', season: 2000, pitcherId: 112388, pitcherName: 'Roger Clemens' }, away: { id: 121, name: 'Mets', season: 1969, pitcherId: 121961, pitcherName: 'Tom Seaver' } },
@@ -996,6 +1044,8 @@ const fantasyMatchups = [
   { label: "Bizarro '69 World Series", home: { id: 158, name: 'Pilots', season: 1969, pitcherId: 111279, pitcherName: 'Jim Bouton' }, away: { id: 121, name: 'Mets', season: 1969, pitcherId: 121961, pitcherName: 'Tom Seaver' } },
   { label: 'Freeway Series', home: { id: 119, name: 'Dodgers', season: 1988, pitcherId: 115861, pitcherName: 'Orel Hershiser' }, away: { id: 108, name: 'Angels', season: 2002, pitcherId: 132220, pitcherName: 'Jarrod Washburn' } },
   { label: 'Braves vs Twins', home: { id: 144, name: 'Braves', season: 1995, pitcherId: 118120, pitcherName: 'Greg Maddux' }, away: { id: 142, name: 'Twins', season: 1991, pitcherId: 119399, pitcherName: 'Jack Morris' } },
+  { label: 'Battle for The Bottom', home: { id: 145, name: 'White Sox', season: 2024, pitcherId: 676979, pitcherName: 'Garrett Crochet' }, away: { id: 121, name: 'Mets', season: 1962, pitcherId: 112783, pitcherName: 'Roger Craig' } },
+  { label: 'Pitching Duel', home: { id: 138, name: 'Cardinals', season: 1968, pitcherId: 114756, pitcherName: 'Bob Gibson' }, away: { id: 119, name: 'Dodgers', season: 1963, pitcherId: 117277, pitcherName: 'Sandy Koufax' } },
 ]
 
 /**
@@ -1147,14 +1197,33 @@ async function selectClassicMatchup(matchup) {
   pitcherList.value = []
   awayPitcherList.value = []
 
+  // Use hardcoded stadium from matchup if available, otherwise fetch
+  if (matchup.stadium) {
+    selectedVenue.value = matchup.stadium
+    homeVenue.value = { id: null, name: matchup.stadium }
+    awayVenue.value = null
+  }
+
   try {
-    // Fetch pitcher lists and era-appropriate team lists in parallel
-    const [homePitchers, awayPitchers, hTeams, aTeams] = await Promise.all([
+    // Fetch pitcher lists, era-appropriate team lists, and venues in parallel
+    const fetches = [
       getTeamPitchers(matchup.home.id, matchup.home.season),
       getTeamPitchers(matchup.away.id, matchup.away.season),
       getAllTeams(matchup.home.season),
       getAllTeams(matchup.away.season),
-    ])
+    ]
+    if (!matchup.stadium) {
+      fetches.push(
+        getTeamVenue(matchup.home.id, matchup.home.season),
+        getTeamVenue(matchup.away.id, matchup.away.season),
+      )
+    }
+    const [homePitchers, awayPitchers, hTeams, aTeams, ...venueResults] = await Promise.all(fetches)
+    if (!matchup.stadium) {
+      homeVenue.value = venueResults[0]
+      awayVenue.value = venueResults[1]
+      selectedVenue.value = venueResults[0]?.name || ''
+    }
     homeTeams.value = hTeams
     awayTeams.value = aTeams
     pitcherList.value = homePitchers
@@ -1240,6 +1309,19 @@ async function goToStep(step) {
     } finally {
       loadingAwayPitchers.value = false
     }
+    return
+  }
+
+  // When entering step 5, fetch venue data for both teams
+  if (step === 5) {
+    setupStep.value = step
+    const [hVenue, aVenue] = await Promise.all([
+      getTeamVenue(teamSelected.value, selectedSeason.value),
+      getTeamVenue(selectedOpponentId.value, selectedAwaySeason.value),
+    ])
+    homeVenue.value = hVenue
+    awayVenue.value = aVenue
+    selectedVenue.value = hVenue?.name || ''
     return
   }
 
@@ -1445,6 +1527,24 @@ function skipToEnd() {
 }
 
 /**
+ * Stop the simulation and let the user take over playing interactively.
+ * Freezes the game at the current snapshot and switches to interactive mode.
+ */
+function takeOverGame() {
+  stopReplayTimer()
+  simulating.value = false
+  simSnapshots.value = []
+  // The current game.value already reflects the snapshot state.
+  // Add a play log entry so the user knows what happened.
+  if (game.value) {
+    const msg = '--- You take over! ---'
+    game.value.play_log.push(msg)
+    game.value.last_play = msg
+    game.value = { ...game.value }
+  }
+}
+
+/**
  * Clean up the replay timer when the component is unmounted.
  * Prevents memory leaks from orphaned setInterval timers
  * if the user navigates away during a simulation.
@@ -1487,6 +1587,9 @@ async function resetGame() {
   awayPitcherList.value = []
   selectedAwayPitcherId.value = null
   selectedWeather.value = 'clear'
+  selectedVenue.value = ''
+  homeVenue.value = null
+  awayVenue.value = null
   awayTeams.value = []
   loadingHomeTeams.value = false
   loadingAwayTeams.value = false
@@ -1518,6 +1621,33 @@ function doPitch(pitchType) {
 function doBat(action) {
   processAtBat(game.value, action)
   game.value = { ...game.value }
+}
+
+const canSteal = computed(() => {
+  if (!game.value || game.value.game_status !== 'active') return false
+  if (game.value.player_role !== 'batting') return false
+  const b = game.value.bases
+  return (b[0] && !b[1]) || (b[1] && !b[2])
+})
+
+function doSteal(baseIdx) {
+  attemptSteal(game.value, baseIdx)
+  game.value = { ...game.value }
+}
+
+/**
+ * Switch from interactive play to simulation for the rest of the game.
+ * Runs simulateGame on the current state and replays the snapshots.
+ */
+function simulateRest() {
+  const result = simulateGame(game.value)
+  simSnapshots.value = result.snapshots || []
+  simReplayIndex.value = 0
+  simulating.value = true
+  if (simSnapshots.value.length > 0) {
+    game.value = { ...game.value, ...simSnapshots.value[0] }
+  }
+  startReplayTimer()
 }
 
 /**
@@ -1643,12 +1773,19 @@ onMounted(async () => {
 /* ========== Mode Picker ========== */
 .mode-picker {
   text-align: center;
-  padding: 20px 0;
+  padding: 80px 20px;
+  background: linear-gradient(rgba(15, 15, 35, 0.82), rgba(26, 26, 46, 0.92)), url('/baseball-bg.jpg') center/cover no-repeat;
+  border-radius: 10px;
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .mode-picker-title {
   font-size: 24px;
-  color: #ffdd00;
+  color: #e94560;
   margin-bottom: 24px;
 }
 
@@ -1676,7 +1813,7 @@ onMounted(async () => {
 
 .mode-card:hover {
   border-color: #ffdd00;
-  background: #1a1a3a;
+  background: #1a1a2e;
 }
 
 .mode-icon {
@@ -1732,7 +1869,7 @@ onMounted(async () => {
 }
 
 .season-hero-dropdown {
-  background: #0f3460;
+  background: #3a3a4a;
   color: #ffdd00;
   border: 2px solid #ffdd00;
   border-radius: 8px;
@@ -1747,7 +1884,7 @@ onMounted(async () => {
 }
 
 .season-hero-dropdown:hover {
-  background: #1a4a7a;
+  background: #4a4a5a;
   border-color: #e94560;
   color: #fff;
 }
@@ -2287,6 +2424,42 @@ onMounted(async () => {
   color: white;
 }
 
+.sim-rest-btn {
+  display: block;
+  margin: 12px auto 0;
+  background: transparent;
+  color: #888;
+  border: 1px solid #555;
+  padding: 6px 18px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sim-rest-btn:hover:not(:disabled) {
+  border-color: #e94560;
+  color: #e0e0e0;
+}
+
+.steal-group {
+  margin-top: 8px;
+}
+
+.steal-btn {
+  background: transparent;
+  color: #ffdd00;
+  border-color: #ffdd00;
+  min-width: 110px;
+  font-size: 13px;
+  padding: 6px 14px;
+}
+
+.steal-btn:hover:not(:disabled) {
+  background: #ffdd00;
+  color: #0a0a1a;
+}
+
 /* ========== Matchup Title ========== */
 .matchup-title {
   text-align: center;
@@ -2340,7 +2513,7 @@ onMounted(async () => {
 }
 
 .score-view-toggle button.active {
-  background: #1a1a3a;
+  background: #1a1a2e;
   color: #ffdd00;
   border-color: #ffdd00;
 }
@@ -2486,6 +2659,25 @@ onMounted(async () => {
   color: #0a0a1a;
 }
 
+.takeover-btn {
+  display: block;
+  margin: 10px auto 0;
+  background: transparent;
+  color: #4caf50;
+  border: 2px solid #4caf50;
+  padding: 8px 24px;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.takeover-btn:hover {
+  background: #4caf50;
+  color: white;
+}
+
 /* ========== Sound Toggle ========== */
 /*
   Positioned absolutely in the top-right corner of the game container.
@@ -2547,20 +2739,20 @@ onMounted(async () => {
 
 /* Individual matchup card — left-aligned text for readability of longer labels */
 .matchup-card {
-  background: #ffffff;
+  background: #3a3a4a;
   border: 2px solid #555;
   border-radius: 8px;
   padding: 12px;
   cursor: pointer;
   transition: all 0.2s;
   text-align: left;
-  color: #222;
+  color: #e0e0e0;
 }
 
 /* Matchup card hover: red border + subtle lift */
 .matchup-card:hover {
   border-color: #e94560;
-  background: #f0f0f0;
+  background: #4a4a5a;
   transform: translateY(-1px);
 }
 
@@ -2580,7 +2772,7 @@ onMounted(async () => {
 
 .matchup-vs {
   font-size: 11px;
-  color: #999;
+  color: #888;
   text-transform: uppercase;
 }
 
@@ -2594,26 +2786,26 @@ onMounted(async () => {
 /* Matchup date and stadium for historical games */
 .matchup-date {
   font-size: 11px;
-  color: #666;
+  color: #888;
   margin-bottom: 2px;
 }
 
 /* Matchup teams description (e.g., "2005 White Sox vs 2016 Cubs") — gray secondary text */
 .matchup-teams {
   font-size: 12px;
-  color: #555;
+  color: #aaa;
 }
 
 /* Starting pitcher names on matchup cards */
 .matchup-pitchers {
   font-size: 11px;
-  color: #c0392b;
+  color: #e94560;
   margin-top: 2px;
 }
 
 .matchup-decision {
   font-size: 10px;
-  color: #666;
+  color: #888;
   margin-top: 3px;
 }
 
@@ -2622,7 +2814,7 @@ onMounted(async () => {
 }
 
 .decision-l {
-  color: #ef5350;
+  color: #e94560;
 }
 
 /* ========== Headshot Wrapper + Team Badge ========== */
@@ -2946,12 +3138,12 @@ onMounted(async () => {
 
 .weather-card:hover {
   border-color: #666;
-  background: #222244;
+  background: #1a1a2e;
 }
 
 .weather-card.selected {
   border-color: #e94560;
-  background: #2a1a2e;
+  background: #3a3a4a;
 }
 
 .weather-icon {
@@ -2966,8 +3158,75 @@ onMounted(async () => {
 
 .weather-detail {
   font-size: 11px;
-  color: #999;
+  color: #888;
   text-align: center;
+}
+
+/* ========== Venue Picker (Step 5) ========== */
+.venue-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 32px auto 0;
+  padding: 0 16px;
+}
+
+.venue-selection p {
+  margin-bottom: 16px;
+  font-weight: bold;
+  color: #ccc;
+  font-size: 15px;
+}
+
+.venue-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  max-width: 640px;
+  width: 100%;
+}
+
+.venue-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: #1a1a2e;
+  border: 2px solid #333;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  color: #ccc;
+}
+
+.venue-card:hover {
+  border-color: #666;
+}
+
+.venue-card.selected {
+  border-color: #e94560;
+  background: #3a3a4a;
+}
+
+.venue-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: #eee;
+}
+
+.venue-team {
+  font-size: 11px;
+  color: #888;
+}
+
+/* ========== Venue Label (Active Game) ========== */
+.venue-label {
+  text-align: center;
+  font-size: 13px;
+  color: #999;
+  font-family: 'Courier New', monospace;
+  margin-bottom: 8px;
 }
 
 /* ========== Weather Banner (Active Game) ========== */

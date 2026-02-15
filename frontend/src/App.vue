@@ -156,4 +156,19 @@ body {
   box-sizing: border-box;
   flex: 1;
 }
+
+@media (max-width: 600px) {
+  .header-inner {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .header-logo {
+    justify-content: center;
+  }
+
+  .nav-tabs {
+    justify-content: center;
+  }
+}
 </style>

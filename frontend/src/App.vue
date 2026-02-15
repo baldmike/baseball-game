@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <header class="app-header">
+    <header class="app-header" v-if="!(activeTab === 'play' && gameRef?.isPlaying)">
       <div class="header-inner">
         <div class="header-logo">
           <svg viewBox="0 0 32 32" class="baseball-icon">

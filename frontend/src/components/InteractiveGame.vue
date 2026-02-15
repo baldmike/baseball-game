@@ -308,6 +308,7 @@
       (diamond + player headshots), last play banner, controls, and play log.
     -->
     <div v-if="game">
+      <button class="home-btn" @click="resetGame" title="Home">&#8962;</button>
       <!--
         Sound Toggle — positioned absolutely in the top-right corner.
         Toggles the global mute state from the useSoundEffects composable.
@@ -1729,7 +1730,9 @@ onMounted(async () => {
   homeTeams.value = await getAllTeams(selectedSeason.value)
 })
 
-defineExpose({ showBackButton, handleBack })
+const isPlaying = computed(() => !!game.value)
+
+defineExpose({ showBackButton, handleBack, isPlaying })
 
 </script>
 
@@ -2689,6 +2692,26 @@ defineExpose({ showBackButton, handleBack })
   z-index: 5 keeps it above normal game content but below the game-over
   overlay (z-index: 10), so it's hidden when the game ends.
 */
+.home-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: none;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 5;
+  color: #aaa;
+  line-height: 1;
+}
+
+.home-btn:hover {
+  border-color: #e94560;
+  color: #e0e0e0;
+}
+
 .sound-toggle {
   position: absolute;
   top: 8px;

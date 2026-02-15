@@ -606,7 +606,8 @@
 
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { createNewGame, getAllTeams, getTeamPitchers, simulateGame, throwPitch, batAction } from '../services/gameApi.js'
+import { createNewGame, simulateGame, processPitch, processAtBat } from '../services/gameEngine.js'
+import { getAllTeams, getTeamPitchers } from '../services/mlbApi.js'
 import { useSoundEffects } from '../composables/useSoundEffects.js'
 import BaseballDiamond from './BaseballDiamond.vue'
 import Scoreboard from './Scoreboard.vue'
@@ -1125,7 +1126,7 @@ async function startGame() {
   loading.value = true
   try {
     game.value = await createNewGame({
-      teamId: teamSelected.value,
+      homeTeamId: teamSelected.value,
       season: selectedSeason.value,
       homePitcherId: selectedPitcherId.value,
       awayTeamId: selectedOpponentId.value,
@@ -1157,15 +1158,15 @@ async function startSimulation() {
   try {
     // Step 1: Create the game with the configured teams/pitchers
     const newGame = await createNewGame({
-      teamId: teamSelected.value,
+      homeTeamId: teamSelected.value,
       season: selectedSeason.value,
       homePitcherId: selectedPitcherId.value,
       awayTeamId: selectedOpponentId.value,
       awaySeason: selectedAwaySeason.value,
       awayPitcherId: selectedAwayPitcherId.value,
     })
-    // Step 2: Run the full simulation on the backend
-    const result = await simulateGame(newGame.game_id)
+    // Step 2: Run the full simulation locally
+    const result = simulateGame(newGame)
     // Step 3: Store the snapshot array for replay
     simSnapshots.value = result.snapshots || []
     simReplayIndex.value = 0
@@ -1294,13 +1295,9 @@ function resetGame() {
  *
  * @param {string} pitchType - One of 'fastball', 'curveball', 'slider', 'changeup'
  */
-async function doPitch(pitchType) {
-  loading.value = true
-  try {
-    game.value = await throwPitch(game.value.game_id, pitchType)
-  } finally {
-    loading.value = false
-  }
+function doPitch(pitchType) {
+  processPitch(game.value, pitchType)
+  game.value = { ...game.value }
 }
 
 /**
@@ -1309,13 +1306,9 @@ async function doPitch(pitchType) {
  *
  * @param {string} action - Either 'swing' (attempt to hit) or 'take' (let pitch pass)
  */
-async function doBat(action) {
-  loading.value = true
-  try {
-    game.value = await batAction(game.value.game_id, action)
-  } finally {
-    loading.value = false
-  }
+function doBat(action) {
+  processAtBat(game.value, action)
+  game.value = { ...game.value }
 }
 
 // ============================================================

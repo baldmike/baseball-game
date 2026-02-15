@@ -1,4 +1,0 @@
-fastapi
-uvicorn[standard]
-mlb-statsapi
-python-dotenv

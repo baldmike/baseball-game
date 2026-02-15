@@ -63,7 +63,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getTodaysGames, getPlayByPlay } from '../services/api.js'
+import { getTodaysGames, getPlayByPlay } from '../services/mlbApi.js'
 
 const games = ref([])
 const loading = ref(false)

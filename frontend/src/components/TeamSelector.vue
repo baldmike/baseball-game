@@ -48,7 +48,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getAllTeams } from '../services/gameApi.js'
+import { getAllTeams } from '../services/mlbApi.js'
 
 /**
  * Declare the events this component can emit.

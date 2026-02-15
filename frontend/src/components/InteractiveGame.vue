@@ -44,7 +44,9 @@
 
       <!-- SEASON MODE: pick season + team -->
       <div v-if="gameMode === 'season'">
-        <button class="back-to-modes" @click="gameMode = null">&larr; Back</button>
+        <div class="step-header">
+          <button class="back-btn" @click="gameMode = null">&larr; Back</button>
+        </div>
         <div class="season-hero">
           <h2 class="season-hero-title">Pick a Season</h2>
           <p class="season-hero-sub">Choose an era, then select your team</p>
@@ -58,7 +60,9 @@
 
       <!-- HISTORIC MODE: classic historical matchups -->
       <div v-if="gameMode === 'historic'">
-        <button class="back-to-modes" @click="gameMode = null">&larr; Back</button>
+        <div class="step-header">
+          <button class="back-btn" @click="gameMode = null">&larr; Back</button>
+        </div>
         <div class="classic-matchups">
           <h3 class="classic-header">Historic Games</h3>
           <div class="matchup-grid">
@@ -85,7 +89,9 @@
 
       <!-- FANTASY MODE: fantasy matchups -->
       <div v-if="gameMode === 'fantasy'">
-        <button class="back-to-modes" @click="gameMode = null">&larr; Back</button>
+        <div class="step-header">
+          <button class="back-btn" @click="gameMode = null">&larr; Back</button>
+        </div>
         <div class="classic-matchups">
           <h3 class="classic-header">Fantasy Matchups</h3>
           <div class="matchup-grid">
@@ -1028,6 +1034,7 @@ const historicalMatchups = [
   { label: "Buehrle's Perfect Game", date: 'Jul 23, 2009', stadium: 'U.S. Cellular Field', weather: 'hot', winningPitcher: 'Mark Buehrle', losingPitcher: 'Scott Kazmir', home: { id: 145, name: 'White Sox', season: 2009, pitcherId: 279824, pitcherName: 'Mark Buehrle' }, away: { id: 139, name: 'Rays', season: 2009, pitcherId: 431148, pitcherName: 'Scott Kazmir' } },
   { label: "Dock Ellis: Just Say No-No", date: 'Jun 12, 1970', stadium: 'San Diego Stadium', weather: 'clear', winningPitcher: 'Dock Ellis', losingPitcher: 'Dave Roberts', home: { id: 135, name: 'Padres', season: 1970, pitcherId: 121276, pitcherName: 'Dave Roberts' }, away: { id: 134, name: 'Pirates', season: 1970, pitcherId: 113815, pitcherName: 'Dock Ellis' } },
   { label: 'History on September 1st, 1971', date: 'Sep 1, 1971', stadium: 'Three Rivers Stadium', weather: 'clear', winningPitcher: 'Dock Ellis', losingPitcher: 'Woodie Fryman', home: { id: 134, name: 'Pirates', season: 1971, pitcherId: 113815, pitcherName: 'Dock Ellis' }, away: { id: 143, name: 'Phillies', season: 1971, pitcherId: 114466, pitcherName: 'Woodie Fryman' } },
+  { label: 'Cubs Break the Curse — Game 7', date: 'Nov 2, 2016', stadium: 'Progressive Field', weather: 'rain', winningPitcher: 'Mike Montgomery', losingPitcher: 'Bryan Shaw', home: { id: 114, name: 'Indians', season: 2016, pitcherId: 446372, pitcherName: 'Corey Kluber' }, away: { id: 112, name: 'Cubs', season: 2016, pitcherId: 543294, pitcherName: 'Kyle Hendricks' } },
 ]
 
 const fantasyMatchups = [
@@ -1150,7 +1157,7 @@ function headshotUrl(playerId) {
 
 /** Build the MLB CDN URL for a team's logo SVG. */
 function teamLogoUrl(teamId) {
-  if (teamId >= 1000) return '/negro-leagues-logo.svg'
+  if (teamId >= 1000) return `${import.meta.env.BASE_URL}negro-leagues-logo.svg`
   return `https://www.mlbstatic.com/team-logos/${teamId}.svg`
 }
 
@@ -1902,6 +1909,10 @@ onMounted(async () => {
 .start-screen {
   text-align: center;
   padding: 60px 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* Heading within wizard steps */
@@ -2708,7 +2719,7 @@ onMounted(async () => {
    Top border separates it from the team selector above. */
 .classic-matchups {
   margin-top: 24px;
-  padding-top: 20px;
+  padding: 20px 16px;
   border-top: 1px solid #333;
 }
 
@@ -2732,8 +2743,6 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 8px;
-  max-height: 260px;
-  overflow-y: auto;
   padding: 4px;
 }
 

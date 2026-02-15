@@ -186,7 +186,7 @@ function resultClass(result) {
 
 .scorecard-table td {
   padding: 4px 4px;
-  border-bottom: 1px solid #1a1a3a;
+  border-bottom: 1px solid #1a1a2e;
   color: #ccc;
   text-align: center;
   white-space: nowrap;

@@ -18,9 +18,9 @@ export const WEATHER_CONDITIONS = {
 
 export const WEATHER_MODIFIERS = {
   clear:    { homerun: 1.0,  double: 1.0,  triple: 1.0, single: 1.0,  flyout: 1.0,  groundout: 1.0,  ball: 1.0,  strike_swinging: 1.0  },
-  hot:      { homerun: 1.25, double: 1.15, triple: 1.0, single: 1.0,  flyout: 0.9,  groundout: 1.0,  ball: 1.1,  strike_swinging: 0.95 },
+  hot:      { homerun: 1.15, double: 1.10, triple: 1.0, single: 1.0,  flyout: 0.95, groundout: 1.0,  ball: 1.05, strike_swinging: 0.95 },
   cold:     { homerun: 0.75, double: 0.85, triple: 1.0, single: 1.0,  flyout: 1.15, groundout: 1.1,  ball: 1.05, strike_swinging: 0.9  },
-  wind_out: { homerun: 1.40, double: 1.20, triple: 1.0, single: 1.0,  flyout: 0.75, groundout: 1.0,  ball: 1.0,  strike_swinging: 1.0  },
+  wind_out: { homerun: 1.25, double: 1.10, triple: 1.0, single: 1.0,  flyout: 0.85, groundout: 1.0,  ball: 1.0,  strike_swinging: 1.0  },
   wind_in:  { homerun: 0.60, double: 0.80, triple: 1.0, single: 1.05, flyout: 1.30, groundout: 1.05, ball: 1.0,  strike_swinging: 1.0  },
   rain:     { homerun: 0.85, double: 0.95, triple: 0.9, single: 1.15, flyout: 1.0,  groundout: 1.1,  ball: 1.20, strike_swinging: 0.90 },
   dome:     { homerun: 1.0,  double: 1.0,  triple: 1.0, single: 1.0,  flyout: 1.0,  groundout: 1.0,  ball: 1.0,  strike_swinging: 1.0  },

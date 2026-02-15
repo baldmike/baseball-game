@@ -12,8 +12,8 @@ const LEAGUE_ERA = 4.30
 const LEAGUE_K_PER_9 = 8.20
 const LEAGUE_BB_PER_9 = 3.20
 
-// Maximum adjustment factor (+-50%)
-const MAX_ADJ = 0.50
+// Maximum adjustment factor (+-30%)
+const MAX_ADJ = 0.30
 
 const HIT_OUTCOMES = new Set(['single', 'double', 'triple', 'homerun'])
 const STRIKEOUT_OUTCOMES = new Set(['strike_swinging'])

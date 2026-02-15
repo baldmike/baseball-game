@@ -18,7 +18,8 @@
       "Bash(grep:*)",
       "Bash(npm run build:*)",
       "WebFetch(domain:statsapi.mlb.com)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(/tmp/QUICK_REFERENCE.txt:*)"
     ]
   }
 }

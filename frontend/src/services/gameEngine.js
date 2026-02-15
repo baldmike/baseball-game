@@ -20,6 +20,7 @@ function _emptyState() {
     balls: 0,
     strikes: 0,
     bases: [false, false, false],
+    runner_indices: [null, null, null],  // batter index of runner on each base
     away_score: Array(TOTAL_INNINGS).fill(0),
     home_score: Array(TOTAL_INNINGS).fill(0),
     away_total: 0,
@@ -90,39 +91,66 @@ function _formatOutcome(outcome) {
   return outcome.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function _advanceRunnersWalk(bases) {
+function _advanceRunnersWalk(state) {
+  const bases = state.bases
+  const ri = state.runner_indices
   let runs = 0
-  if (bases[0] && bases[1] && bases[2]) runs = 1
-  if (bases[0] && bases[1]) bases[2] = true
-  if (bases[0]) bases[1] = true
+  if (bases[0] && bases[1] && bases[2]) { runs = 1; _scoreRunner(state, ri[2]); ri[2] = null }
+  if (bases[0] && bases[1]) { bases[2] = true; ri[2] = ri[1]; ri[1] = null }
+  if (bases[0]) { bases[1] = true; ri[1] = ri[0]; ri[0] = null }
   bases[0] = true
+  const idx = state.is_top ? (state.away_batter_idx || 0) : (state.home_batter_idx || 0)
+  const lineup = state.is_top ? state.away_lineup : state.home_lineup
+  ri[0] = lineup ? idx % lineup.length : 0
   return runs
 }
 
-function _advanceRunnersHit(bases, hitType) {
+function _advanceRunnersHit(state, hitType) {
+  const bases = state.bases
+  const ri = state.runner_indices
   let runs = 0
   if (hitType === 'single') {
-    if (bases[2]) { runs += 1; bases[2] = false }
-    if (bases[1]) { bases[2] = true; bases[1] = false }
-    if (bases[0]) { bases[1] = true; bases[0] = false }
+    if (bases[2]) { runs += 1; _scoreRunner(state, ri[2]); bases[2] = false; ri[2] = null }
+    if (bases[1]) { bases[2] = true; ri[2] = ri[1]; bases[1] = false; ri[1] = null }
+    if (bases[0]) { bases[1] = true; ri[1] = ri[0]; bases[0] = false; ri[0] = null }
     bases[0] = true
+    const idx = state.is_top ? (state.away_batter_idx || 0) : (state.home_batter_idx || 0)
+    const lineup = state.is_top ? state.away_lineup : state.home_lineup
+    ri[0] = lineup ? idx % lineup.length : 0
   } else if (hitType === 'double') {
-    if (bases[2]) runs += 1
-    if (bases[1]) runs += 1
-    if (bases[0]) { bases[2] = true; bases[0] = false } else { bases[2] = false }
+    if (bases[2]) { runs += 1; _scoreRunner(state, ri[2]); ri[2] = null }
+    if (bases[1]) { runs += 1; _scoreRunner(state, ri[1]); ri[1] = null }
+    if (bases[0]) { bases[2] = true; ri[2] = ri[0]; bases[0] = false; ri[0] = null } else { bases[2] = false; ri[2] = null }
     bases[1] = true
+    const idx = state.is_top ? (state.away_batter_idx || 0) : (state.home_batter_idx || 0)
+    const lineup = state.is_top ? state.away_lineup : state.home_lineup
+    ri[1] = lineup ? idx % lineup.length : 0
   } else if (hitType === 'triple') {
     for (let i = 0; i < 3; i++) {
-      if (bases[i]) { runs += 1; bases[i] = false }
+      if (bases[i]) { runs += 1; _scoreRunner(state, ri[i]); bases[i] = false; ri[i] = null }
     }
     bases[2] = true
+    const idx = state.is_top ? (state.away_batter_idx || 0) : (state.home_batter_idx || 0)
+    const lineup = state.is_top ? state.away_lineup : state.home_lineup
+    ri[2] = lineup ? idx % lineup.length : 0
   } else if (hitType === 'homerun') {
     for (let i = 0; i < 3; i++) {
-      if (bases[i]) { runs += 1; bases[i] = false }
+      if (bases[i]) { runs += 1; _scoreRunner(state, ri[i]); bases[i] = false; ri[i] = null }
     }
     runs += 1
+    // Batter scores too — credit the run
+    const idx = state.is_top ? (state.away_batter_idx || 0) : (state.home_batter_idx || 0)
+    const lineup = state.is_top ? state.away_lineup : state.home_lineup
+    _scoreRunner(state, lineup ? idx % lineup.length : 0)
   }
   return runs
+}
+
+/** Credit a run to a runner in the box score */
+function _scoreRunner(state, runnerIdx) {
+  if (runnerIdx == null) return
+  const box = state.is_top ? state.away_box_score : state.home_box_score
+  if (box && box[runnerIdx]) box[runnerIdx].r += 1
 }
 
 function _scoreRuns(state, runs) {
@@ -155,6 +183,7 @@ function _endGame(state) {
 function _endHalfInning(state) {
   state.outs = 0
   state.bases = [false, false, false]
+  state.runner_indices = [null, null, null]
   _resetCount(state)
 
   if (state.is_top) {
@@ -212,7 +241,7 @@ function _walk(state) {
   const msg = 'Ball four — batter walks!'
   state.play_log.push(msg)
   state.last_play = msg
-  const runs = _advanceRunnersWalk(state.bases)
+  const runs = _advanceRunnersWalk(state)
   if (batterBox && runs > 0) batterBox.rbi += runs
   if (pitcherBox && runs > 0) { pitcherBox.r += runs; pitcherBox.er += runs }
   _pushScorecardPA(state, 'walk', runs)
@@ -239,7 +268,7 @@ function _recordOut(state, description, outType) {
 function _recordHit(state, hitType) {
   const batterBox = _getBatterBox(state)
   const pitcherBox = _getPitcherBox(state)
-  const runs = _advanceRunnersHit(state.bases, hitType)
+  const runs = _advanceRunnersHit(state, hitType)
   if (batterBox) {
     if (runs > 0) batterBox.rbi += runs
     if (hitType === 'double') batterBox['2b'] += 1
@@ -299,6 +328,7 @@ function _snapshot(state) {
     balls: state.balls,
     strikes: state.strikes,
     bases: [...state.bases],
+    runner_indices: [...state.runner_indices],
     away_score: [...state.away_score],
     home_score: [...state.home_score],
     away_total: state.away_total,
@@ -434,7 +464,7 @@ export async function createNewGame({
         for (const [lineup, key] of [[state.home_lineup, 'home_box_score'], [state.away_lineup, 'away_box_score']]) {
           if (lineup) {
             state[key] = lineup.map((p) => ({
-              id: p.id, name: p.name, pos: p.position || '', ab: 0, r: 0, h: 0, '2b': 0, '3b': 0, hr: 0, rbi: 0, bb: 0, so: 0,
+              id: p.id, name: p.name, pos: p.position || '', ab: 0, r: 0, h: 0, '2b': 0, '3b': 0, hr: 0, rbi: 0, bb: 0, so: 0, sb: 0,
             }))
           }
         }
@@ -512,6 +542,65 @@ export function processAtBat(state, action) {
   return state
 }
 
+// MLB steal success rate ~75%, attempt rate ~0.06 per plate appearance
+const STEAL_SUCCESS_RATE = 0.75
+const SIM_STEAL_ATTEMPT_RATE = 0.06  // ~1.1 attempts per team per game
+
+/**
+ * Attempt a stolen base. baseIdx: 0 = steal 2nd, 1 = steal 3rd.
+ * Returns the state after the attempt.
+ */
+export function attemptSteal(state, baseIdx) {
+  if (!state || state.game_status !== 'active') return state || {}
+  if (!state.bases[baseIdx] || state.bases[baseIdx + 1]) {
+    state.last_play = "Can't steal — no runner or base occupied!"
+    return state
+  }
+
+  const box = state.is_top ? state.away_box_score : state.home_box_score
+  const runnerIdx = state.runner_indices[baseIdx]
+  const runnerName = (box && runnerIdx != null) ? box[runnerIdx]?.name || 'Runner' : 'Runner'
+  const targetBase = baseIdx === 0 ? '2nd' : '3rd'
+
+  if (Math.random() < STEAL_SUCCESS_RATE) {
+    // Success
+    state.bases[baseIdx + 1] = true
+    state.runner_indices[baseIdx + 1] = state.runner_indices[baseIdx]
+    state.bases[baseIdx] = false
+    state.runner_indices[baseIdx] = null
+    if (box && runnerIdx != null && box[runnerIdx]) box[runnerIdx].sb += 1
+    const msg = `${runnerName} steals ${targetBase}!`
+    state.play_log.push(msg)
+    state.last_play = msg
+  } else {
+    // Caught stealing
+    state.bases[baseIdx] = false
+    state.runner_indices[baseIdx] = null
+    state.outs += 1
+    const msg = `${runnerName} caught stealing ${targetBase}!`
+    state.play_log.push(msg)
+    state.last_play = msg
+    if (state.outs >= 3) {
+      _endHalfInning(state)
+    }
+  }
+  return state
+}
+
+/**
+ * In simulation, maybe attempt a steal if runners are on base.
+ * Called once per plate appearance during simulated games.
+ */
+function _maybeSimSteal(state) {
+  if (Math.random() >= SIM_STEAL_ATTEMPT_RATE) return
+  // Prefer stealing 2nd (runner on 1st) over 3rd
+  if (state.bases[0] && !state.bases[1]) {
+    attemptSteal(state, 0)
+  } else if (state.bases[1] && !state.bases[2]) {
+    attemptSteal(state, 1)
+  }
+}
+
 /**
  * Find a reliever from the bullpen by name (case-insensitive partial match).
  * Returns the index in the bullpen array, or -1 if not found.
@@ -573,6 +662,8 @@ export function simulateGame(state) {
 
     if (state.player_role === 'pitching') {
       _maybeSwapPitcher(state, 'home')
+      _maybeSimSteal(state)
+      if (state.outs >= 3) { snapshots.push(_snapshot(state)); continue }
       const batter = _getCurrentBatter(state)
       const playerStats = batter?.stats || null
       const batterName = batter?.name || 'Batter'
@@ -587,6 +678,8 @@ export function simulateGame(state) {
       _applyOutcome(state, outcome, msg)
     } else {
       _maybeSwapPitcher(state, 'away')
+      _maybeSimSteal(state)
+      if (state.outs >= 3) { snapshots.push(_snapshot(state)); continue }
       const batter = _getCurrentBatter(state)
       const playerStats = batter?.stats || null
       const pitcher = state.away_pitcher

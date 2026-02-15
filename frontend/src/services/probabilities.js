@@ -16,55 +16,56 @@ export const CPU_PITCH_WEIGHTS = {
   changeup: 15,
 }
 
-// CPU batter swings at roughly 60% of pitches
-export const CPU_SWING_PROBABILITY = 0.60
+// CPU batter swings at roughly 50% of pitches (MLB ~47% swing rate)
+export const CPU_SWING_PROBABILITY = 0.50
 
 // Outcomes when the batter SWINGS, keyed by pitch type.
-// Weights are relative (not percentages).
+// Tuned to produce ~4-5 runs/team/game matching MLB averages:
+//   BA ~.245, HR ~1.1/game, ~8-10 total runs/game
 export const SWING_OUTCOMES = {
   fastball: {
     strike_swinging: 25,
     foul: 20,
-    groundout: 15,
-    flyout: 12,
+    groundout: 17,
+    flyout: 13,
     lineout: 5,
-    single: 12,
-    double: 5,
-    triple: 1,
-    homerun: 5,
-  },
-  curveball: {
-    strike_swinging: 35,
-    foul: 15,
-    groundout: 15,
-    flyout: 10,
-    lineout: 5,
-    single: 10,
+    single: 11.5,
     double: 4,
     triple: 1,
-    homerun: 5,
+    homerun: 2.5,
+  },
+  curveball: {
+    strike_swinging: 33,
+    foul: 16,
+    groundout: 17,
+    flyout: 12,
+    lineout: 5,
+    single: 10,
+    double: 3.5,
+    triple: 0.5,
+    homerun: 2.5,
   },
   slider: {
     strike_swinging: 30,
     foul: 18,
-    groundout: 16,
-    flyout: 10,
+    groundout: 17,
+    flyout: 12,
     lineout: 5,
-    single: 11,
-    double: 4,
-    triple: 1,
-    homerun: 5,
+    single: 10.5,
+    double: 3.5,
+    triple: 0.5,
+    homerun: 2.5,
   },
   changeup: {
     strike_swinging: 28,
     foul: 17,
-    groundout: 17,
-    flyout: 11,
+    groundout: 18,
+    flyout: 13,
     lineout: 5,
-    single: 11,
-    double: 5,
-    triple: 1,
-    homerun: 5,
+    single: 10.5,
+    double: 4,
+    triple: 0.5,
+    homerun: 2.5,
   },
 }
 
@@ -112,9 +113,9 @@ export function weightedChoice(weights) {
 export function applyFatigueMod(table, pitchCount) {
   if (pitchCount < 85) return table
   let factor
-  if (pitchCount < 100) factor = 1.08
-  else if (pitchCount < 115) factor = 1.18
-  else factor = 1.28
+  if (pitchCount < 100) factor = 1.05
+  else if (pitchCount < 115) factor = 1.10
+  else factor = 1.18
   const adjusted = { ...table }
   if (adjusted.homerun) adjusted.homerun *= factor
   if (adjusted.double) adjusted.double *= factor

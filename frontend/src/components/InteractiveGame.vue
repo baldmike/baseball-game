@@ -876,6 +876,7 @@ const classicMatchups = [
   { label: 'Small Market Royalty', home: { id: 118, name: 'Royals', season: 2015 }, away: { id: 134, name: 'Pirates', season: 1979 } },
   { label: 'Freeway Series', home: { id: 119, name: 'Dodgers', season: 1988 }, away: { id: 108, name: 'Angels', season: 2002 } },
   { label: 'Braves vs Twins', home: { id: 144, name: 'Braves', season: 1995 }, away: { id: 142, name: 'Twins', season: 1991 } },
+  { label: 'Sammy Sosa Corked Bat Game', home: { id: 112, name: 'Cubs', season: 2003 }, away: { id: 139, name: 'Devil Rays', season: 2003 } },
 ]
 
 /**

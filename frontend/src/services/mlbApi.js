@@ -9,6 +9,9 @@ const CORS_PROXY = 'https://corsproxy.io/?url='
 /** Minor league team IDs mapped to their sportId (for stats queries). */
 const MINOR_LEAGUE_TEAMS = { 247: 12 } // Birmingham Barons = Double-A
 
+/** Players guaranteed a lineup spot when their team is selected (by team ID). */
+const GUARANTEED_LINEUP = { 247: [470052] } // Michael Jordan on the Barons
+
 function sportIdForTeam(teamId) {
   return MINOR_LEAGUE_TEAMS[teamId] || 1
 }
@@ -261,6 +264,22 @@ export async function getTeamLineup(teamId, season = 2024) {
     for (const player of remaining) {
       if (lineup.length >= 9) break
       lineup.push(player)
+    }
+
+    // Ensure guaranteed players make the lineup (e.g. Michael Jordan on the Barons)
+    const guaranteed = GUARANTEED_LINEUP[teamId] || []
+    for (const gId of guaranteed) {
+      if (!lineup.find(p => p.id === gId)) {
+        const gPlayer = positionPlayers.find(p => p.id === gId)
+        if (gPlayer && lineup.length >= 9) {
+          // Replace the lowest-OPS non-guaranteed player
+          lineup.sort((a, b) => ops(a) - ops(b))
+          const dropIdx = lineup.findIndex(p => !guaranteed.includes(p.id))
+          if (dropIdx >= 0) lineup.splice(dropIdx, 1, gPlayer)
+        } else if (gPlayer) {
+          lineup.push(gPlayer)
+        }
+      }
     }
 
     // Sort final lineup by OPS descending

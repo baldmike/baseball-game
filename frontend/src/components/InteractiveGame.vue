@@ -44,9 +44,6 @@
 
       <!-- SEASON MODE: pick season + team -->
       <div v-if="gameMode === 'season'">
-        <div class="step-header">
-          <button class="back-btn" @click="gameMode = null">&larr; Back</button>
-        </div>
         <div class="season-hero">
           <h2 class="season-hero-title">Pick a Season</h2>
           <p class="season-hero-sub">Choose an era, then select your team</p>
@@ -60,9 +57,6 @@
 
       <!-- HISTORIC MODE: classic historical matchups -->
       <div v-if="gameMode === 'historic'">
-        <div class="step-header">
-          <button class="back-btn" @click="gameMode = null">&larr; Back</button>
-        </div>
         <div class="classic-matchups">
           <h3 class="classic-header">Historic Games</h3>
           <div class="matchup-grid">
@@ -89,9 +83,6 @@
 
       <!-- FANTASY MODE: fantasy matchups -->
       <div v-if="gameMode === 'fantasy'">
-        <div class="step-header">
-          <button class="back-btn" @click="gameMode = null">&larr; Back</button>
-        </div>
         <div class="classic-matchups">
           <h3 class="classic-header">Fantasy Matchups</h3>
           <div class="matchup-grid">
@@ -122,7 +113,6 @@
     -->
     <div v-if="!game && setupStep === 2" class="start-screen">
       <div class="step-header">
-        <button class="back-btn" @click="goBack">&larr; Back</button>
         <h3 class="step-label">{{ homeTeamName }} ({{ selectedSeason }})</h3>
       </div>
 
@@ -157,7 +147,6 @@
     -->
     <div v-if="!game && setupStep === 3" class="start-screen">
       <div class="step-header">
-        <button class="back-btn" @click="goBack">&larr; Back</button>
         <h3 class="step-label">Now pick the opponent</h3>
       </div>
       <div class="season-select pregame-season" style="margin-bottom: 16px; text-align: center;">
@@ -202,7 +191,6 @@
     -->
     <div v-if="!game && setupStep === 4" class="start-screen">
       <div class="step-header">
-        <button class="back-btn" @click="goBack">&larr; Back</button>
         <h3 class="step-label" v-if="!classicMode">{{ awayTeamName }} ({{ selectedAwaySeason }})</h3>
         <h3 class="step-label" v-else>{{ homeTeamName }} ({{ selectedSeason }}) vs {{ awayTeamName }} ({{ selectedAwaySeason }})</h3>
       </div>
@@ -266,7 +254,6 @@
     -->
     <div v-if="!game && setupStep === 5" class="start-screen">
       <div class="step-header">
-        <button class="back-btn" @click="goBack">&larr; Back</button>
         <h3 class="step-label">Game Day Weather</h3>
       </div>
 
@@ -795,7 +782,7 @@ const teamSelected = ref(null)
  * The season year for the home team's roster (e.g., 2024, 1927).
  * Defaults to 2024 (most recent complete season).
  */
-const selectedSeason = ref(2024)
+const selectedSeason = ref(2025)
 
 /**
  * Array of all available season years for the dropdown.
@@ -843,7 +830,7 @@ const selectedOpponentId = ref(null)
  * The season year for the away team's roster.
  * Independent from selectedSeason so you can create cross-era matchups.
  */
-const selectedAwaySeason = ref(2024)
+const selectedAwaySeason = ref(2025)
 
 /**
  * Loading flag for the away team's pitcher list API call.
@@ -1343,16 +1330,37 @@ async function goToStep(step) {
  * - From step 2: go to step 1 and clear the team selection
  * - All other steps: go to the previous step number
  */
+/**
+ * Whether the unified back button should be visible.
+ * Hidden on the initial mode picker (step 1, no gameMode selected) and during gameplay.
+ */
+const showBackButton = computed(() => {
+  if (game.value) return false
+  if (setupStep.value === 1 && !gameMode.value) return false
+  return true
+})
+
+/**
+ * Unified back handler for all setup screens.
+ * Handles mode pages (back to mode picker) and wizard steps (back to previous step).
+ */
+function handleBack() {
+  // From a mode page (season/historic/fantasy) on step 1, return to mode picker
+  if (setupStep.value === 1 && gameMode.value) {
+    gameMode.value = null
+    return
+  }
+  goBack()
+}
+
 function goBack() {
   if (classicMode.value && setupStep.value === 5) {
-    // Classic mode skipped steps 2-4, so "back" from weather returns to step 1
     classicMode.value = false
-  classicLabel.value = ''
-  classicMatchupData.value = null
+    classicLabel.value = ''
+    classicMatchupData.value = null
     teamSelected.value = null
     setupStep.value = 1
   } else if (setupStep.value === 2) {
-    // Going back from step 2 means un-selecting the team
     teamSelected.value = null
     setupStep.value = 1
   } else {
@@ -1586,11 +1594,11 @@ async function resetGame() {
   game.value = null
   setupStep.value = 1
   teamSelected.value = null
-  selectedSeason.value = 2024
+  selectedSeason.value = 2025
   pitcherList.value = []
   selectedPitcherId.value = null
   selectedOpponentId.value = null
-  selectedAwaySeason.value = 2024
+  selectedAwaySeason.value = 2025
   awayPitcherList.value = []
   selectedAwayPitcherId.value = null
   selectedWeather.value = 'clear'
@@ -1601,7 +1609,7 @@ async function resetGame() {
   loadingHomeTeams.value = false
   loadingAwayTeams.value = false
   // Re-fetch teams for default season
-  homeTeams.value = await getAllTeams(2024)
+  homeTeams.value = await getAllTeams(2025)
 }
 
 // ============================================================
@@ -1720,6 +1728,8 @@ onMounted(async () => {
   homeTeams.value = await getAllTeams(selectedSeason.value)
 })
 
+defineExpose({ showBackButton, handleBack })
+
 </script>
 
 <style scoped>
@@ -1819,7 +1829,7 @@ onMounted(async () => {
 }
 
 .mode-card:hover {
-  border-color: #ffdd00;
+  border-color: #e94560;
   background: #1a1a2e;
 }
 
@@ -1850,7 +1860,7 @@ onMounted(async () => {
 }
 
 .back-to-modes:hover {
-  color: #ffdd00;
+  color: #e94560;
 }
 
 /* ========== Season Hero ========== */
@@ -1864,7 +1874,7 @@ onMounted(async () => {
 
 .season-hero-title {
   font-size: 28px;
-  color: #ffdd00;
+  color: #e94560;
   margin: 0 0 4px 0;
   letter-spacing: 1px;
 }
@@ -1877,8 +1887,8 @@ onMounted(async () => {
 
 .season-hero-dropdown {
   background: #3a3a4a;
-  color: #ffdd00;
-  border: 2px solid #ffdd00;
+  color: #e94560;
+  border: 2px solid #e94560;
   border-radius: 8px;
   padding: 12px 24px;
   font-size: 24px;
@@ -1940,28 +1950,11 @@ onMounted(async () => {
 
 /* Step label text (e.g., "Your Team: Yankees") — yellow for emphasis */
 .step-label {
-  color: #ffdd00;
+  color: #e94560;
   font-size: 16px;
   margin: 0;
 }
 
-/* Back navigation button — ghost style with arrow character */
-.back-btn {
-  background: none;
-  border: 1px solid #555;
-  color: #aaa;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
-}
-
-/* Back button hover: red border to match app accent */
-.back-btn:hover {
-  border-color: #e94560;
-  color: #e0e0e0;
-}
 
 /* Bottom margin on the season dropdown when used in the pre-game wizard */
 .pregame-season {
@@ -2000,7 +1993,7 @@ onMounted(async () => {
 
 /* League header for opponent sections (same style as TeamSelector) */
 .league-header {
-  color: #ffdd00;
+  color: #e94560;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -2018,8 +2011,8 @@ onMounted(async () => {
 
 /* Individual opponent team card — same visual style as TeamSelector cards */
 .opponent-card {
-  background: #3a3a4a;
-  border: 2px solid #555;
+  background: #ffffff;
+  border: 2px solid #ddd;
   border-radius: 8px;
   padding: 14px 8px;
   cursor: pointer;
@@ -2030,14 +2023,14 @@ onMounted(async () => {
 /* Hover state: red border + slight lift */
 .opponent-card:hover {
   border-color: #e94560;
-  background: #4a4a5a;
+  background: #f5f5f5;
   transform: translateY(-2px);
 }
 
-/* Selected state: persistent red border + darker background (no lift needed) */
+/* Selected state: persistent red border */
 .opponent-card.selected {
   border-color: #e94560;
-  background: #4a4a5a;
+  background: #f5f5f5;
 }
 
 /* Opponent team abbreviation — yellow monospace to match team card style */
@@ -2051,7 +2044,7 @@ onMounted(async () => {
 .opponent-abbr {
   font-size: 22px;
   font-weight: bold;
-  color: #ffdd00;
+  color: #e94560;
   font-family: 'Courier New', monospace;
   margin-bottom: 4px;
 }
@@ -2059,7 +2052,7 @@ onMounted(async () => {
 /* Opponent team full name */
 .opponent-name {
   font-size: 12px;
-  color: #ccc;
+  color: #555;
   line-height: 1.2;
 }
 
@@ -2194,7 +2187,7 @@ onMounted(async () => {
 
 /* Batter headshot border: yellow to match the app's "highlight/action" color for batters */
 .batter-side .player-headshot {
-  border-color: #ffdd00;
+  border-color: #e94560;
 }
 
 /* Info section below the headshot (role label + player name) */
@@ -2229,7 +2222,7 @@ onMounted(async () => {
 
 /* Batter name in yellow to match the batter-side theme */
 .player-card-name.batter-name-text {
-  color: #ffdd00;
+  color: #e94560;
 }
 
 /* ========== Game Over Overlay ========== */
@@ -2293,7 +2286,7 @@ onMounted(async () => {
 .final-team .score {
   font-size: 48px;
   font-weight: bold;
-  color: #ffdd00;
+  color: #e94560;
   font-family: 'Courier New', monospace;
 }
 
@@ -2348,7 +2341,7 @@ onMounted(async () => {
   margin: 12px 0;
   text-align: center;
   font-size: 15px;
-  color: #ffdd00;
+  color: #e94560;
   font-weight: 500;
 }
 
@@ -2459,15 +2452,15 @@ onMounted(async () => {
 
 .steal-btn {
   background: transparent;
-  color: #ffdd00;
-  border-color: #ffdd00;
+  color: #e94560;
+  border-color: #e94560;
   min-width: 110px;
   font-size: 13px;
   padding: 6px 14px;
 }
 
 .steal-btn:hover:not(:disabled) {
-  background: #ffdd00;
+  background: #e94560;
   color: #0a0a1a;
 }
 
@@ -2476,7 +2469,7 @@ onMounted(async () => {
   text-align: center;
   font-size: 16px;
   font-weight: bold;
-  color: #ffdd00;
+  color: #e94560;
   font-family: 'Courier New', monospace;
   letter-spacing: 1px;
   margin-bottom: 8px;
@@ -2525,8 +2518,8 @@ onMounted(async () => {
 
 .score-view-toggle button.active {
   background: #1a1a2e;
-  color: #ffdd00;
-  border-color: #ffdd00;
+  color: #e94560;
+  border-color: #e94560;
 }
 
 .score-view-toggle button:hover:not(.active) {
@@ -2559,7 +2552,7 @@ onMounted(async () => {
 
 .box-team-header {
   font-size: 13px;
-  color: #ffdd00;
+  color: #e94560;
   text-transform: uppercase;
   letter-spacing: 1px;
   margin: 0 0 8px 0;
@@ -2600,7 +2593,7 @@ onMounted(async () => {
 }
 
 .box-table tr.active-batter td {
-  color: #ffdd00;
+  color: #e94560;
   font-weight: bold;
 }
 
@@ -2660,13 +2653,13 @@ onMounted(async () => {
 /* "Skip to End" button — yellow border/text to differentiate from speed buttons.
    Yellow = caution/attention, appropriate for an action that skips content. */
 .speed-btn.skip {
-  border-color: #ffdd00;
-  color: #ffdd00;
+  border-color: #e94560;
+  color: #e94560;
 }
 
 /* Skip button hover: fills with yellow, text goes dark for contrast */
 .speed-btn.skip:hover:not(:disabled) {
-  background: #ffdd00;
+  background: #e94560;
   color: #0a0a1a;
 }
 
@@ -2725,7 +2718,7 @@ onMounted(async () => {
 
 /* "Classic Matchups" heading — yellow uppercase to match league headers */
 .classic-header {
-  color: #ffdd00;
+  color: #e94560;
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -2748,20 +2741,20 @@ onMounted(async () => {
 
 /* Individual matchup card — left-aligned text for readability of longer labels */
 .matchup-card {
-  background: #3a3a4a;
-  border: 2px solid #555;
+  background: #ffffff;
+  border: 2px solid #ddd;
   border-radius: 8px;
   padding: 12px;
   cursor: pointer;
   transition: all 0.2s;
   text-align: left;
-  color: #e0e0e0;
+  color: #222;
 }
 
 /* Matchup card hover: red border + subtle lift */
 .matchup-card:hover {
   border-color: #e94560;
-  background: #4a4a5a;
+  background: #f5f5f5;
   transform: translateY(-1px);
 }
 
@@ -2795,14 +2788,14 @@ onMounted(async () => {
 /* Matchup date and stadium for historical games */
 .matchup-date {
   font-size: 11px;
-  color: #888;
+  color: #666;
   margin-bottom: 2px;
 }
 
 /* Matchup teams description (e.g., "2005 White Sox vs 2016 Cubs") — gray secondary text */
 .matchup-teams {
   font-size: 12px;
-  color: #aaa;
+  color: #555;
 }
 
 /* Starting pitcher names on matchup cards */
@@ -2814,7 +2807,7 @@ onMounted(async () => {
 
 .matchup-decision {
   font-size: 10px;
-  color: #888;
+  color: #666;
   margin-top: 3px;
 }
 

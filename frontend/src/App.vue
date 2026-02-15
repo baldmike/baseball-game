@@ -21,6 +21,13 @@
             <span class="header-subtitle">Powered by real MLB rosters &amp; stats</span>
           </div>
         </div>
+        <div class="header-center">
+          <button
+            v-if="activeTab === 'play' && gameRef?.showBackButton"
+            class="header-back-btn"
+            @click="gameRef.handleBack()"
+          >&larr; Back</button>
+        </div>
         <nav class="nav-tabs">
           <button
             class="nav-tab"
@@ -36,7 +43,7 @@
       </div>
     </header>
     <main class="app-main">
-      <InteractiveGame v-if="activeTab === 'play'" />
+      <InteractiveGame v-if="activeTab === 'play'" ref="gameRef" />
       <GameView v-else-if="activeTab === 'live'" />
     </main>
   </div>
@@ -48,6 +55,7 @@ import InteractiveGame from './components/InteractiveGame.vue'
 import GameView from './components/GameView.vue'
 
 const activeTab = ref('play')
+const gameRef = ref(null)
 </script>
 
 <style>
@@ -79,6 +87,29 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.header-center {
+  min-width: 80px;
+  display: flex;
+  justify-content: center;
+}
+
+.header-back-btn {
+  background: none;
+  border: 1px solid #555;
+  color: #aaa;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.header-back-btn:hover {
+  border-color: #e94560;
+  color: #e0e0e0;
 }
 
 .header-logo {

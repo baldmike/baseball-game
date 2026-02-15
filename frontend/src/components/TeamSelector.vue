@@ -7,7 +7,6 @@
   -->
   <div class="team-selector">
     <h2>Choose Your Team</h2>
-    <p class="subtitle">Select an MLB team to play as</p>
 
     <!-- Loading state: shown while the API call to fetch teams is in progress -->
     <div v-if="loading" class="loading">Loading teams...</div>
@@ -166,8 +165,8 @@ onMounted(async () => {
   Cursor: pointer and transition provide interactive feedback.
 */
 .team-card {
-  background: #3a3a4a;
-  border: 2px solid #555;
+  background: #ffffff;
+  border: 2px solid #ddd;
   border-radius: 8px;
   padding: 14px 8px;
   cursor: pointer;
@@ -181,7 +180,7 @@ onMounted(async () => {
 */
 .team-card:hover {
   border-color: #e94560;
-  background: #4a4a5a;
+  background: #f5f5f5;
   transform: translateY(-2px);
 }
 
@@ -199,7 +198,7 @@ onMounted(async () => {
 .team-abbr {
   font-size: 22px;
   font-weight: bold;
-  color: #ffdd00;
+  color: #e94560;
   font-family: 'Courier New', monospace;
   margin-bottom: 4px;
 }
@@ -207,7 +206,7 @@ onMounted(async () => {
 /* Full team name displayed small and gray below the abbreviation */
 .team-name {
   font-size: 12px;
-  color: #ccc;
+  color: #555;
   line-height: 1.2;
 }
 

@@ -1,5 +1,5 @@
 /**
- * game.test.js — 24-test suite covering core game logic.
+ * game.test.js — Test suite covering core game logic.
  * Runs before every deploy to catch regressions.
  */
 import { describe, it, expect, vi } from 'vitest'
@@ -13,6 +13,7 @@ import {
   SWING_OUTCOMES,
   TAKE_OUTCOMES,
   CPU_PITCH_WEIGHTS,
+  BUNT_OUTCOMES,
 } from '../probabilities.js'
 
 import { applyWeatherModifiers, WEATHER_MODIFIERS } from '../weather.js'
@@ -693,5 +694,233 @@ describe('double play', () => {
     processAtBat(state, 'swing')
     randomMock.mockRestore()
     expect(state.away_pitcher_stats.ip_outs).toBe(ipOutsBefore + 2)
+  })
+})
+
+// ──────────────────────────────────────────────
+// BUNT TESTS
+// ──────────────────────────────────────────────
+describe('bunt', () => {
+  // ──────────────────────────────────────────────
+  // TEST: BUNT_OUTCOMES table has valid weights that sum to 100
+  // ──────────────────────────────────────────────
+  it('BUNT_OUTCOMES weights sum to 100 and all are positive', () => {
+    const total = Object.values(BUNT_OUTCOMES).reduce((a, b) => a + b, 0)
+    expect(total).toBe(100)
+    for (const w of Object.values(BUNT_OUTCOMES)) {
+      expect(w).toBeGreaterThan(0)
+    }
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: weightedChoice returns only valid bunt outcomes
+  // ──────────────────────────────────────────────
+  it('weightedChoice with BUNT_OUTCOMES returns valid bunt outcomes', () => {
+    const validOutcomes = new Set(Object.keys(BUNT_OUTCOMES))
+    for (let i = 0; i < 100; i++) {
+      expect(validOutcomes).toContain(weightedChoice(BUNT_OUTCOMES))
+    }
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: processAtBat accepts 'bunt' action and updates state
+  // ──────────────────────────────────────────────
+  it('processAtBat accepts bunt action and updates play log', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    const before = state.play_log.length
+    processAtBat(state, 'bunt')
+    expect(state.play_log.length).toBeGreaterThan(before)
+    expect(state.play_log.some(m => m.includes('bunt'))).toBe(true)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: sacrifice_out advances runners and records an out
+  // ──────────────────────────────────────────────
+  it('sacrifice_out advances runners one base and records an out', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    state.outs = 0
+    state._forceNextOutcome = 'sacrifice_out'
+    processAtBat(state, 'bunt')
+    // Runner should have advanced from 1st to 2nd
+    expect(state.bases[1]).toBe(true)
+    expect(state.bases[0]).toBe(false)
+    // One out recorded
+    expect(state.outs).toBe(1)
+    expect(state.play_log.some(m => m.includes('Sacrifice bunt'))).toBe(true)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: sacrifice_out with runner on 3rd scores a run
+  // ──────────────────────────────────────────────
+  it('sacrifice_out with runner on 3rd scores a run', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 0
+    const scoreBefore = state.home_total
+    state._forceNextOutcome = 'sacrifice_out'
+    processAtBat(state, 'bunt')
+    expect(state.home_total).toBe(scoreBefore + 1)
+    expect(state.bases[2]).toBe(false)
+    expect(state.play_log.some(m => m.includes('run(s) score'))).toBe(true)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: sacrifice_out credits RBI to batter when runner scores
+  // ──────────────────────────────────────────────
+  it('sacrifice_out credits RBI to batter when a run scores', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 0
+    state._forceNextOutcome = 'sacrifice_out'
+    const batterIdx = state.home_batter_idx
+    processAtBat(state, 'bunt')
+    expect(state.home_box_score[batterIdx].rbi).toBe(1)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: sacrifice_out pushes scorecard entry
+  // ──────────────────────────────────────────────
+  it('sacrifice_out pushes a scorecard PA with result sacrifice_out', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    state._forceNextOutcome = 'sacrifice_out'
+    processAtBat(state, 'bunt')
+    const entry = state.home_scorecard.find(e => e.result === 'sacrifice_out')
+    expect(entry).toBeDefined()
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: bunt foul with 2 strikes is a strikeout
+  // ──────────────────────────────────────────────
+  it('bunt foul with 2 strikes results in a strikeout', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.strikes = 2
+    state.outs = 0
+    state._forceNextOutcome = 'foul'
+    processAtBat(state, 'bunt')
+    // Should have struck out
+    expect(state.outs).toBe(1)
+    expect(state.play_log.some(m => m.includes('Bunt foul with two strikes'))).toBe(true)
+    expect(state.home_box_score[0].so).toBe(1)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: bunt foul with fewer than 2 strikes just adds a strike
+  // ──────────────────────────────────────────────
+  it('bunt foul with 0 strikes adds a strike without strikeout', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.strikes = 0
+    state.outs = 0
+    state._forceNextOutcome = 'foul'
+    processAtBat(state, 'bunt')
+    expect(state.strikes).toBe(1)
+    expect(state.outs).toBe(0)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: bunt popout records an out without advancing runners
+  // ──────────────────────────────────────────────
+  it('bunt popout records an out and runners hold', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    state.outs = 0
+    state._forceNextOutcome = 'popout'
+    vi.spyOn(Math, 'random').mockReturnValue(0.99) // skip error chance
+    processAtBat(state, 'bunt')
+    Math.random.mockRestore()
+    expect(state.outs).toBe(1)
+    // Runner should still be on 1st (popout = runners hold)
+    expect(state.bases[0]).toBe(true)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: bunt single reaches base and advances runners
+  // ──────────────────────────────────────────────
+  it('bunt single puts batter on base and advances runners', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, true, false]
+    state.runner_indices = [null, 1, null]
+    state.outs = 0
+    state._forceNextOutcome = 'single'
+    processAtBat(state, 'bunt')
+    // Batter on 1st, runner advanced from 2nd to 3rd
+    expect(state.bases[0]).toBe(true)
+    expect(state.bases[2]).toBe(true)
+    expect(state.home_box_score[0].h).toBe(1)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: bunt groundout records out without advancing runners
+  // ──────────────────────────────────────────────
+  it('bunt groundout records an out (normal out, no sacrifice advancement)', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    state.outs = 0
+    state._forceNextOutcome = 'groundout'
+    // Skip error and DP (high random)
+    vi.spyOn(Math, 'random').mockReturnValue(0.99)
+    processAtBat(state, 'bunt')
+    Math.random.mockRestore()
+    expect(state.outs).toBe(1)
+    expect(state.home_box_score[0].ab).toBe(1)
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: sacrifice_out with 2 outs ends the half-inning
+  // ──────────────────────────────────────────────
+  it('sacrifice_out with 2 outs ends the half-inning', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    state.outs = 2
+    state._forceNextOutcome = 'sacrifice_out'
+    processAtBat(state, 'bunt')
+    // 3 outs → half-inning ends, outs reset
+    expect(state.outs).toBe(0)
+    expect(state.bases).toEqual([false, false, false])
+  })
+
+  // ──────────────────────────────────────────────
+  // TEST: sacrifice_out credits pitcher ip_outs
+  // ──────────────────────────────────────────────
+  it('sacrifice_out credits the pitcher with 1 ip_out', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    const ipBefore = state.away_pitcher_stats.ip_outs
+    state._forceNextOutcome = 'sacrifice_out'
+    processAtBat(state, 'bunt')
+    expect(state.away_pitcher_stats.ip_outs).toBe(ipBefore + 1)
   })
 })

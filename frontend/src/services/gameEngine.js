@@ -554,6 +554,7 @@ function _applyOutcome(state, outcome, msg) {
       if (state.strikes < 2) state.strikes += 1
     }
   } else if (outcome === 'sacrifice_out') {
+    // Sacrifice bunt: batter is out, runners advance one base each
     const runs = _advanceRunnersBunt(state)
     if (batterBox) batterBox.ab += 1
     if (pitcherBox) pitcherBox.ip_outs += 1
@@ -884,17 +885,23 @@ export function processAtBat(state, action) {
   const pitcher = state.away_pitcher
   const pitcherStats = pitcher?.activeStats || pitcher?.stats || null
 
+  // CPU pitcher selects a pitch type (fastball, slider, curveball, changeup)
   const pitchType = cpuPicksPitch()
+
+  // Determine outcome: forced (testing), bunt table, or normal swing/take
   let outcome
   if (state._forceNextOutcome) {
     outcome = state._forceNextOutcome
     state._forceNextOutcome = null
   } else if (action === 'bunt') {
+    // Bunts use a flat probability table — no pitch-type or stat adjustments
     outcome = weightedChoice(BUNT_OUTCOMES)
   } else {
     const swings = action === 'swing'
     outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count, state.time_of_day)
   }
+
+  // Flag bunt action so _applyOutcome can enforce bunt-foul strikeout rule
   state._lastActionWasBunt = action === 'bunt'
   const actionStr = action === 'bunt' ? 'bunt' : (action === 'swing' ? 'swing' : 'take')
   const msg = `Pitcher throws a ${pitchType}. You ${actionStr}: ${_formatOutcome(outcome)}!`

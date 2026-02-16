@@ -6,7 +6,18 @@
       <p v-if="loading" class="loading">Loading games...</p>
       <p v-if="error" class="error">{{ error }}</p>
       <div v-if="games.length === 0 && !loading && !error" class="no-games">
-        No games scheduled today.
+        <template v-if="countdown">
+          <div class="countdown">
+            <div class="countdown-value">{{ countdown.days }}<span class="countdown-unit">d</span></div>
+            <div class="countdown-value">{{ countdown.hours }}<span class="countdown-unit">h</span></div>
+            <div class="countdown-value">{{ countdown.minutes }}<span class="countdown-unit">m</span></div>
+            <div class="countdown-value">{{ countdown.seconds }}<span class="countdown-unit">s</span></div>
+          </div>
+          <p class="countdown-label">until first pitch.</p>
+        </template>
+        <template v-else>
+          No games scheduled today.
+        </template>
       </div>
       <div
         v-for="game in games"
@@ -62,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { getTodaysGames, getPlayByPlay } from '../services/mlbApi.js'
 
 const games = ref([])
@@ -74,7 +85,32 @@ const plays = ref([])
 const playsLoading = ref(false)
 const playsError = ref(null)
 
+// 2026 Opening Day: March 26, 2026 — first pitch ~1:10 PM ET
+const OPENING_DAY = new Date('2026-03-26T13:10:00-04:00')
+const countdown = ref(null)
+let countdownTimer = null
+
+function updateCountdown() {
+  const now = new Date()
+  const diff = OPENING_DAY - now
+  if (diff <= 0) {
+    countdown.value = null
+    if (countdownTimer) clearInterval(countdownTimer)
+    return
+  }
+  const days = Math.floor(diff / 86400000)
+  const hours = Math.floor((diff % 86400000) / 3600000)
+  const minutes = Math.floor((diff % 3600000) / 60000)
+  const seconds = Math.floor((diff % 60000) / 1000)
+  countdown.value = { days, hours, minutes, seconds }
+}
+
 onMounted(async () => {
+  updateCountdown()
+  if (countdown.value) {
+    countdownTimer = setInterval(updateCountdown, 1000)
+  }
+
   loading.value = true
   try {
     games.value = await getTodaysGames()
@@ -83,6 +119,10 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+})
+
+onUnmounted(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
 })
 
 async function selectGame(gamePk) {
@@ -237,5 +277,38 @@ async function selectGame(gamePk) {
   text-align: center;
   color: #888;
   padding: 40px;
+}
+
+.countdown {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.countdown-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 60px;
+  text-align: center;
+}
+
+.countdown-unit {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: #e94560;
+  margin-left: 2px;
+}
+
+.countdown-label {
+  font-size: 1.1rem;
+  color: #ccc;
+  margin: 0;
+  letter-spacing: 0.5px;
 }
 </style>

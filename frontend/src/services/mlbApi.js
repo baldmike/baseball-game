@@ -4,7 +4,7 @@
  */
 
 const MLB_BASE = 'https://statsapi.mlb.com'
-const CORS_PROXY = 'https://corsproxy.io/?url='
+const CORS_PROXY = 'https://api.allorigins.win/raw?url='
 
 /** Minor league team IDs mapped to their sportId (for stats queries). */
 const MINOR_LEAGUE_TEAMS = { 247: 12 } // Birmingham Barons = Double-A

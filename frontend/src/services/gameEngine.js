@@ -23,7 +23,7 @@
  */
 
 import * as mlbApi from './mlbApi.js'
-import { cpuDecidesSwing, cpuPicksPitch, determineOutcome } from './probabilities.js'
+import { cpuDecidesSwing, cpuPicksPitch, determineOutcome, BUNT_OUTCOMES, weightedChoice } from './probabilities.js'
 import { WEATHER_CONDITIONS, TIME_OF_DAY, getErrorChance } from './weather.js'
 
 // ============================================================
@@ -35,7 +35,7 @@ const TOTAL_INNINGS = 9
 
 /** Outcome categories — used to branch logic in _applyOutcome(). */
 const HIT_TYPES = new Set(['single', 'double', 'triple', 'homerun'])
-const OUT_TYPES = new Set(['groundout', 'flyout', 'lineout'])
+const OUT_TYPES = new Set(['groundout', 'flyout', 'lineout', 'popout'])
 
 /**
  * Double play probability when the situation is "in order" (runner on 1st, <2 outs,
@@ -255,6 +255,21 @@ function _advanceRunnersHit(state, hitType) {
     const lineup = state.is_top ? state.away_lineup : state.home_lineup
     _scoreRunner(state, lineup ? idx % lineup.length : 0)
   }
+  return runs
+}
+
+/**
+ * Advance runners on a sacrifice bunt (batter is out, runners move up one base).
+ * Runner on 3rd scores, 2nd→3rd, 1st→2nd. Batter does NOT reach base.
+ * Returns the number of runs scored.
+ */
+function _advanceRunnersBunt(state) {
+  const bases = state.bases
+  const ri = state.runner_indices
+  let runs = 0
+  if (bases[2]) { runs += 1; _scoreRunner(state, ri[2]); bases[2] = false; ri[2] = null }
+  if (bases[1]) { bases[2] = true; ri[2] = ri[1]; bases[1] = false; ri[1] = null }
+  if (bases[0]) { bases[1] = true; ri[1] = ri[0]; bases[0] = false; ri[0] = null }
   return runs
 }
 
@@ -529,7 +544,34 @@ function _applyOutcome(state, outcome, msg) {
       _recordOut(state, 'Strikeout!', 'strikeout')
     }
   } else if (outcome === 'foul') {
-    if (state.strikes < 2) state.strikes += 1
+    if (state._lastActionWasBunt && state.strikes >= 2) {
+      // Bunt foul with 2 strikes is a strikeout
+      state.strikes = 3
+      if (batterBox) { batterBox.ab += 1; batterBox.so += 1 }
+      if (pitcherBox) { pitcherBox.so += 1; pitcherBox.ip_outs += 1 }
+      _recordOut(state, 'Bunt foul with two strikes — strikeout!', 'strikeout')
+    } else {
+      if (state.strikes < 2) state.strikes += 1
+    }
+  } else if (outcome === 'sacrifice_out') {
+    const runs = _advanceRunnersBunt(state)
+    if (batterBox) batterBox.ab += 1
+    if (pitcherBox) pitcherBox.ip_outs += 1
+    if (batterBox && runs > 0) batterBox.rbi += runs
+    if (pitcherBox && runs > 0) { pitcherBox.r += runs; pitcherBox.er += runs }
+    _scoreRuns(state, runs)
+    const desc = runs > 0 ? `Sacrifice bunt! ${runs} run(s) score!` : 'Sacrifice bunt — runners advance!'
+    _pushScorecardPA(state, 'sacrifice_out', runs)
+    state.play_log.push(desc)
+    state.last_play = msg + ' ' + desc
+    state.outs += 1
+    _resetCount(state)
+    _advanceBatter(state)
+    if (state.outs >= 3) {
+      _endHalfInning(state)
+    } else {
+      _getCurrentBatter(state)
+    }
   } else if (OUT_TYPES.has(outcome)) {
     const errorChance = getErrorChance(state.time_of_day)
     if (Math.random() < errorChance) {
@@ -843,17 +885,21 @@ export function processAtBat(state, action) {
   const pitcherStats = pitcher?.activeStats || pitcher?.stats || null
 
   const pitchType = cpuPicksPitch()
-  const swings = action === 'swing'
   let outcome
   if (state._forceNextOutcome) {
     outcome = state._forceNextOutcome
     state._forceNextOutcome = null
+  } else if (action === 'bunt') {
+    outcome = weightedChoice(BUNT_OUTCOMES)
   } else {
+    const swings = action === 'swing'
     outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count, state.time_of_day)
   }
-  const actionStr = swings ? 'swing' : 'take'
+  state._lastActionWasBunt = action === 'bunt'
+  const actionStr = action === 'bunt' ? 'bunt' : (action === 'swing' ? 'swing' : 'take')
   const msg = `Pitcher throws a ${pitchType}. You ${actionStr}: ${_formatOutcome(outcome)}!`
   _applyOutcome(state, outcome, msg)
+  state._lastActionWasBunt = false
   return state
 }
 

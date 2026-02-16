@@ -740,6 +740,9 @@
             <button class="action-btn swing-btn" @click="doBat('swing')" :disabled="loading">
               Swing!
             </button>
+            <button class="action-btn bunt-btn" @click="doBat('bunt')" :disabled="loading">
+              Bunt
+            </button>
             <button class="action-btn take-btn" @click="doBat('take')" :disabled="loading">
               Take
             </button>
@@ -3260,6 +3263,19 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
   background: #ff6b81;
 }
 
+/* Bunt button — amber/orange to differentiate from Swing (red) and Take (green) */
+.bunt-btn {
+  background: #3a3a4a;
+  color: #ff9800;
+  border-color: #ff9800;
+  min-width: 140px;
+}
+
+.bunt-btn:hover:not(:disabled) {
+  background: #ff9800;
+  color: white;
+}
+
 /* Take button — green border/text to contrast with the red swing button.
    Green = passive/safe (letting the pitch go by) vs red = aggressive (swinging). */
 .take-btn {
@@ -4183,6 +4199,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
   }
 
   .swing-btn,
+  .bunt-btn,
   .take-btn {
     min-width: 110px;
   }

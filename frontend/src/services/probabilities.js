@@ -157,6 +157,15 @@ export function determineOutcome(pitchType, swings, playerStats = null, pitcherS
   }
 }
 
+// Outcomes when the batter BUNTS — pitch-type independent (bunting is mechanical, not reactive)
+export const BUNT_OUTCOMES = {
+  sacrifice_out: 45,   // batter out, runners advance (the main purpose)
+  groundout: 15,       // batter out, runners don't advance
+  foul: 25,            // foul ball (with 2 strikes = strikeout)
+  single: 10,          // bunt single (batter reaches, runners advance)
+  popout: 5,           // popped up, easy out, runners hold
+}
+
 /** CPU batter decides whether to swing (60% chance). */
 export function cpuDecidesSwing() {
   return Math.random() < CPU_SWING_PROBABILITY

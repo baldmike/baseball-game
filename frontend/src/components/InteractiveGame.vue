@@ -188,9 +188,10 @@
       </div>
       <div class="season-select pregame-season" style="margin-bottom: 16px; text-align: center;">
         <label for="away-season" style="color: #aaa; font-size: 14px; margin-right: 8px;">Season:</label>
-        <select id="away-season" v-model="selectedAwaySeason" class="season-dropdown">
+        <select v-if="premiumUnlocked" id="away-season" v-model="selectedAwaySeason" class="season-dropdown">
           <option v-for="year in availableSeasons" :key="year" :value="year">{{ year }}</option>
         </select>
+        <span v-else style="color: #ccc; font-size: 15px;">{{ selectedSeason }}</span>
         <span v-if="loadingAwayTeams" style="color: #888; margin-left: 12px; font-size: 13px;">Loading teams...</span>
       </div>
       <div class="opponent-leagues">
@@ -1390,6 +1391,9 @@ async function goToStep(step) {
 
   // When entering step 3, fetch away teams for the default away season
   if (step === 3) {
+    if (!premiumUnlocked.value) {
+      selectedAwaySeason.value = selectedSeason.value
+    }
     setupStep.value = step
     if (!awayTeams.value.length) {
       loadingAwayTeams.value = true

@@ -379,6 +379,14 @@
         </div>
       </div>
 
+      <!-- Aaron 715 announcement overlay -->
+      <div v-if="aaronAnnouncement" class="game-over-overlay">
+        <div class="game-over-card aaron-card">
+          <h2>Hank Aaron has just broken Babe Ruth's record, with 715 Home Runs!</h2>
+          <button class="play-btn" @click="dismissAaronAnnouncement">Continue Game</button>
+        </div>
+      </div>
+
       <!--
         Scoreboard component — displays the line score grid with per-inning runs,
         ball-strike count, outs, and current inning. All data is passed as props.
@@ -1551,6 +1559,20 @@ async function startSimulation() {
       weather: selectedWeather.value,
       classicRelievers: _buildClassicRelievers(),
     })
+    // Aaron 715 hook: force HR on his 2nd PA during simulation
+    if (classicLabel.value === "Hank Aaron's 715th Home Run") {
+      newGame._prePitchHook = (st) => {
+        if (st.is_top) return
+        const aaronIdx = st.home_lineup?.findIndex(b => b.name && b.name.includes('Hank Aaron'))
+        if (aaronIdx === -1 || aaronIdx == null) return
+        const currentIdx = st.home_batter_idx % st.home_lineup.length
+        if (currentIdx !== aaronIdx) return
+        const box = st.home_box_score?.[aaronIdx]
+        if (!box) return
+        const pa = (box.ab || 0) + (box.bb || 0)
+        if (pa === 1) st._forceNextOutcome = 'homerun'
+      }
+    }
     // Step 2: Run the full simulation locally
     const result = simulateGame(newGame)
     // Step 3: Store the snapshot array for replay
@@ -1590,7 +1612,22 @@ function startReplayTimer() {
     // Spread operator preserves fields that don't change between snapshots
     // (like team names, lineup arrays, etc.) while updating the ones that do
     // (score, bases, count, play_log, etc.).
-    game.value = { ...game.value, ...simSnapshots.value[simReplayIndex.value] }
+    const snap = simSnapshots.value[simReplayIndex.value]
+    game.value = { ...game.value, ...snap }
+    // Pause simulation for Aaron 715 announcement
+    if (classicLabel.value === "Hank Aaron's 715th Home Run" && !aaronVideoOpened.value) {
+      if (snap.last_play && snap.last_play.toLowerCase().includes('home run')) {
+        const aaronIdx = game.value.home_lineup?.findIndex(b => b.name && b.name.includes('Hank Aaron'))
+        if (aaronIdx >= 0) {
+          const box = snap.home_box_score?.[aaronIdx]
+          if (box && box.hr >= 1) {
+            stopReplayTimer()
+            _triggerAaron715()
+            return
+          }
+        }
+      }
+    }
   }, simSpeed.value)
 }
 
@@ -1728,8 +1765,53 @@ function doPitch(pitchType) {
  *
  * @param {string} action - Either 'swing' (attempt to hit) or 'take' (let pitch pass)
  */
+const aaronVideoOpened = ref(false)
+const aaronAnnouncement = ref(false)
+
+function _checkAaron715(state) {
+  if (!state || classicLabel.value !== "Hank Aaron's 715th Home Run") return
+  if (state.player_role !== 'batting' || state.is_top) return
+  // Find Hank Aaron in home lineup by name
+  const aaronIdx = state.home_lineup?.findIndex(b => b.name && b.name.includes('Hank Aaron'))
+  if (aaronIdx === -1 || aaronIdx == null) return
+  const currentIdx = state.home_batter_idx % state.home_lineup.length
+  if (currentIdx !== aaronIdx) return
+  // Count plate appearances from box score (ab + bb = PA proxy)
+  const box = state.home_box_score?.[aaronIdx]
+  if (!box) return
+  const pa = (box.ab || 0) + (box.bb || 0)
+  if (pa === 1) {
+    state._forceNextOutcome = 'homerun'
+  }
+}
+
+function _triggerAaron715() {
+  if (aaronVideoOpened.value) return
+  aaronVideoOpened.value = true
+  aaronAnnouncement.value = true
+  window.open('https://www.youtube.com/watch?v=QjqYThEVoSQ', '_blank')
+}
+
+function _afterAaron715(state) {
+  if (!state || classicLabel.value !== "Hank Aaron's 715th Home Run") return
+  if (aaronVideoOpened.value) return
+  if (state.last_play && state.last_play.toLowerCase().includes('home run')) {
+    const aaronIdx = state.home_lineup?.findIndex(b => b.name && b.name.includes('Hank Aaron'))
+    if (aaronIdx === -1 || aaronIdx == null) return
+    const box = state.home_box_score?.[aaronIdx]
+    if (box && box.hr >= 1) _triggerAaron715()
+  }
+}
+
+function dismissAaronAnnouncement() {
+  aaronAnnouncement.value = false
+  if (simulating.value) startReplayTimer()
+}
+
 function doBat(action) {
+  _checkAaron715(game.value)
   processAtBat(game.value, action)
+  _afterAaron715(game.value)
   game.value = { ...game.value }
 }
 
@@ -2350,6 +2432,12 @@ defineExpose({ showBackButton, handleBack, isPlaying })
 .game-over-card {
   text-align: center;
   padding: 40px;
+}
+
+.aaron-card h2 {
+  font-size: 24px;
+  color: #f0c040;
+  line-height: 1.4;
 }
 
 /* "Game Over!" heading */

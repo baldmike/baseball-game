@@ -559,7 +559,13 @@ export function processAtBat(state, action) {
 
   const pitchType = cpuPicksPitch()
   const swings = action === 'swing'
-  const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count)
+  let outcome
+  if (state._forceNextOutcome) {
+    outcome = state._forceNextOutcome
+    state._forceNextOutcome = null
+  } else {
+    outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count)
+  }
   const actionStr = swings ? 'swing' : 'take'
   const msg = `Pitcher throws a ${pitchType}. You ${actionStr}: ${_formatOutcome(outcome)}!`
   _applyOutcome(state, outcome, msg)
@@ -684,6 +690,9 @@ export function simulateGame(state) {
   while (state.game_status === 'active' && iteration < maxIterations) {
     iteration++
 
+    // Pre-pitch hook for forced outcomes
+    if (state._prePitchHook) state._prePitchHook(state)
+
     if (state.player_role === 'pitching') {
       _maybeSwapPitcher(state, 'home')
       _maybeSimSteal(state)
@@ -696,7 +705,9 @@ export function simulateGame(state) {
 
       const pitchType = cpuPicksPitch()
       const swings = cpuDecidesSwing()
-      const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.home_pitch_count)
+      let outcome
+      if (state._forceNextOutcome) { outcome = state._forceNextOutcome; state._forceNextOutcome = null }
+      else { outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.home_pitch_count) }
       const actionStr = swings ? 'swings' : 'takes'
       const msg = `You throw a ${pitchType}. ${batterName} ${actionStr}: ${_formatOutcome(outcome)}!`
       _applyOutcome(state, outcome, msg)
@@ -711,7 +722,9 @@ export function simulateGame(state) {
 
       const pitchType = cpuPicksPitch()
       const swings = cpuDecidesSwing()
-      const outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count)
+      let outcome
+      if (state._forceNextOutcome) { outcome = state._forceNextOutcome; state._forceNextOutcome = null }
+      else { outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count) }
       const actionStr = swings ? 'swing' : 'take'
       const msg = `Pitcher throws a ${pitchType}. You ${actionStr}: ${_formatOutcome(outcome)}!`
       _applyOutcome(state, outcome, msg)

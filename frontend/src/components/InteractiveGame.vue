@@ -485,6 +485,25 @@
         </div>
       </div>
 
+      <!-- Disco Demolition Night end-of-game video -->
+      <div v-if="showDiscoVideo" class="game-over-overlay">
+        <div class="aaron-overlay-content">
+          <p class="disco-blurb">..and then this happened</p>
+          <div class="aaron-video">
+            <iframe
+              src="https://www.youtube.com/embed/a1zN-oLCKo4?autoplay=1"
+              allow="autoplay; encrypted-media"
+              allowfullscreen
+              frameborder="0"
+            ></iframe>
+          </div>
+          <div class="aaron-card">
+            <h2>Disco Demolition Night!</h2>
+            <button class="play-btn" @click="showDiscoVideo = false">Close</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Aaron 715 announcement overlay -->
       <div v-if="aaronAnnouncement" class="game-over-overlay">
         <div class="aaron-overlay-content">
@@ -2053,6 +2072,7 @@ function showPostGame(view) {
 
 async function resetGame() {
   gameOverDismissed.value = false
+  showDiscoVideo.value = false
   gameMode.value = null
   stopReplayTimer()
   simulating.value = false
@@ -2106,6 +2126,14 @@ function doPitch(pitchType) {
  */
 const aaronVideoOpened = ref(false)
 const aaronAnnouncement = ref(false)
+const showDiscoVideo = ref(false)
+
+// Show Disco Demolition video when that game ends
+watch(() => game.value?.game_status, (status) => {
+  if (status === 'final' && classicLabel.value === 'Disco Demolition Night') {
+    showDiscoVideo.value = true
+  }
+})
 
 function _checkAaron715(state) {
   if (!state || classicLabel.value !== "Hank Aaron's 715th Home Run") return
@@ -2902,6 +2930,14 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
 .aaron-card {
   text-align: center;
   padding: 20px;
+}
+
+.disco-blurb {
+  text-align: center;
+  color: #aaa;
+  font-size: 14px;
+  font-style: italic;
+  margin-bottom: 10px;
 }
 
 .aaron-card h2 {

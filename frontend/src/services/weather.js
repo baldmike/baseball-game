@@ -46,3 +46,37 @@ export function applyWeatherModifiers(outcomeWeights, weatherKey) {
   }
   return adjusted
 }
+
+// ============================================================
+// TIME OF DAY — Premium game modifier
+// ============================================================
+
+export const TIME_OF_DAY = {
+  day:      { label: 'Day Game',  icon: '☀️',  desc: '+3% BA, -5% K, +10% errors' },
+  twilight: { label: 'Twilight',  icon: '🌅', desc: '+15% errors, weird visibility' },
+  night:    { label: 'Night Game', icon: '🌙', desc: '-5% BA, +10% K, +5% pitcher' },
+}
+
+export const TIME_OF_DAY_MODIFIERS = {
+  day:      { single: 1.03, double: 1.03, triple: 1.03, homerun: 1.03, strike_swinging: 0.95, strike_looking: 0.95 },
+  twilight: { single: 0.97, double: 0.97, triple: 0.97, homerun: 0.97, strike_swinging: 1.05, strike_looking: 1.05 },
+  night:    { single: 0.95, double: 0.95, triple: 0.95, homerun: 0.95, strike_swinging: 1.10, strike_looking: 1.10, groundout: 1.05, flyout: 1.05 },
+}
+
+export function applyTimeOfDayModifiers(outcomeWeights, todKey) {
+  const modifiers = TIME_OF_DAY_MODIFIERS[todKey]
+  if (!modifiers) return { ...outcomeWeights }
+
+  const adjusted = {}
+  for (const [outcome, weight] of Object.entries(outcomeWeights)) {
+    const multiplier = modifiers[outcome] ?? 1.0
+    adjusted[outcome] = weight * multiplier
+  }
+  return adjusted
+}
+
+const ERROR_CHANCES = { day: 0.04, twilight: 0.06, night: 0.02 }
+
+export function getErrorChance(todKey) {
+  return ERROR_CHANCES[todKey] ?? 0.02
+}

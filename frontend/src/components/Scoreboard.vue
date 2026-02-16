@@ -3,9 +3,9 @@
     Scoreboard — a traditional baseball line score display.
 
     Shows a grid with:
-      - Header row: inning numbers + "R" (runs total) column
-      - Away team row: runs scored per inning + total
-      - Home team row: runs scored per inning + total
+      - Header row: inning numbers + R H E (runs, hits, errors) columns
+      - Away team row: runs scored per inning + R H E totals
+      - Home team row: runs scored per inning + R H E totals
 
     Below the grid, three info panels show:
       - Count (balls-strikes)
@@ -37,8 +37,10 @@
       >
         {{ i + 1 }}
       </div>
-      <!-- "R" column header for runs total -->
+      <!-- R H E column headers -->
       <div class="cell header total-col">R</div>
+      <div class="cell header total-col">H</div>
+      <div class="cell header total-col">E</div>
 
       <!--
         Away team row.
@@ -63,8 +65,10 @@
       >
         {{ i < inning || (i === inning - 1 && isTop) ? runs : '' }}
       </div>
-      <!-- Away team total runs — always visible -->
+      <!-- Away team R H E totals — always visible -->
       <div class="cell total-col">{{ awayTotal }}</div>
+      <div class="cell total-col">{{ awayHits }}</div>
+      <div class="cell total-col">{{ awayErrors }}</div>
 
       <!--
         Home team row.
@@ -85,8 +89,10 @@
       >
         {{ i < inning - 1 || (i === inning - 1 && !isTop) ? runs : '' }}
       </div>
-      <!-- Home team total runs — always visible -->
+      <!-- Home team R H E totals — always visible -->
       <div class="cell total-col">{{ homeTotal }}</div>
+      <div class="cell total-col">{{ homeHits }}</div>
+      <div class="cell total-col">{{ homeErrors }}</div>
     </div>
 
     <!--
@@ -180,6 +186,14 @@ const props = defineProps({
   awayTeamId: { type: Number, default: 0 },
   /** Home team numeric ID — used to load the team logo from the MLB CDN */
   homeTeamId: { type: Number, default: 0 },
+  /** Total hits for the away team */
+  awayHits: { type: Number, default: 0 },
+  /** Total hits for the home team */
+  homeHits: { type: Number, default: 0 },
+  /** Total errors for the away team */
+  awayErrors: { type: Number, default: 0 },
+  /** Total errors for the home team */
+  homeErrors: { type: Number, default: 0 },
 })
 
 /** Build the MLB CDN URL for a team's logo SVG. */
@@ -209,7 +223,7 @@ const totalInnings = computed(() => props.awayScore.length)
  * - 40px total column is slightly wider for emphasis
  */
 const gridStyle = computed(() => ({
-  gridTemplateColumns: `minmax(50px, 80px) repeat(${totalInnings.value}, 1fr) minmax(30px, 40px)`,
+  gridTemplateColumns: `minmax(50px, 80px) repeat(${totalInnings.value}, 1fr) repeat(3, minmax(30px, 40px))`,
 }))
 </script>
 

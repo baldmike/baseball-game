@@ -6,7 +6,7 @@
  */
 
 import { calculateAdjustedOutcomes, calculateAdjustedTakeOutcomes } from './statsCalculator.js'
-import { applyWeatherModifiers } from './weather.js'
+import { applyWeatherModifiers, applyTimeOfDayModifiers } from './weather.js'
 
 // CPU pitch type selection weights (~50% fastball, matching real MLB usage)
 export const CPU_PITCH_WEIGHTS = {
@@ -129,10 +129,11 @@ export function applyFatigueMod(table, pitchCount) {
  * Given a pitch type and whether the batter swings, return the outcome.
  * Optionally adjusts weights based on real player/pitcher stats.
  */
-export function determineOutcome(pitchType, swings, playerStats = null, pitcherStats = null, weather = null, pitchCount = 0) {
+export function determineOutcome(pitchType, swings, playerStats = null, pitcherStats = null, weather = null, pitchCount = 0, timeOfDay = null) {
   if (swings) {
     let table = { ...SWING_OUTCOMES[pitchType] }
     if (weather) table = applyWeatherModifiers(table, weather)
+    if (timeOfDay) table = applyTimeOfDayModifiers(table, timeOfDay)
     if (pitchCount) table = applyFatigueMod(table, pitchCount)
     if (playerStats) {
       table = calculateAdjustedOutcomes(table, playerStats, pitcherStats)
@@ -147,6 +148,7 @@ export function determineOutcome(pitchType, swings, playerStats = null, pitcherS
   } else {
     let table = { ...TAKE_OUTCOMES[pitchType] }
     if (weather) table = applyWeatherModifiers(table, weather)
+    if (timeOfDay) table = applyTimeOfDayModifiers(table, timeOfDay)
     if (pitchCount) table = applyFatigueMod(table, pitchCount)
     if (pitcherStats) {
       table = calculateAdjustedTakeOutcomes(table, pitcherStats)

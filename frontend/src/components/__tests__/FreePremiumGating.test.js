@@ -164,3 +164,46 @@ describe('Free vs Premium — Opponent Season (Step 3)', () => {
     expect(wrapper.vm.selectedAwaySeason).toBe(2020)
   })
 })
+
+describe('Free vs Premium — Time of Day Picker (Step 5)', () => {
+  async function goToStep5(wrapper) {
+    wrapper.vm.gameMode = 'season'
+    wrapper.vm.setupStep = 5
+    await wrapper.vm.$nextTick()
+  }
+
+  it('free user does not see the time-of-day picker', async () => {
+    const wrapper = mountGame()
+    await goToStep5(wrapper)
+
+    // The time-of-day section is only rendered for premium users
+    const weatherSections = wrapper.findAll('.weather-selection')
+    // There should be exactly 1 weather-selection (the weather one), not 2
+    expect(weatherSections.length).toBe(1)
+  })
+
+  it('premium user sees the time-of-day picker with 3 options', async () => {
+    const wrapper = mountPremiumGame()
+    await goToStep5(wrapper)
+
+    const weatherSections = wrapper.findAll('.weather-selection')
+    // Should be 2: one for weather, one for time-of-day
+    expect(weatherSections.length).toBe(2)
+
+    const todSection = weatherSections[1]
+    const buttons = todSection.findAll('.weather-card')
+    expect(buttons.length).toBe(3)
+  })
+
+  it('premium user can select a time-of-day option', async () => {
+    const wrapper = mountPremiumGame()
+    await goToStep5(wrapper)
+
+    const weatherSections = wrapper.findAll('.weather-selection')
+    const todSection = weatherSections[1]
+    const buttons = todSection.findAll('.weather-card')
+
+    await buttons[2].trigger('click')
+    expect(wrapper.vm.selectedTimeOfDay).toBe('night')
+  })
+})

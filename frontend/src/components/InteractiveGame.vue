@@ -357,6 +357,23 @@
         </div>
       </div>
 
+      <div v-if="premiumUnlocked" class="weather-selection">
+        <p>Time of day:</p>
+        <div class="weather-grid">
+          <button
+            v-for="key in timeOfDayKeys"
+            :key="key"
+            class="weather-card"
+            :class="{ selected: selectedTimeOfDay === key }"
+            @click="selectedTimeOfDay = key"
+          >
+            <span class="weather-icon">{{ TIME_OF_DAY[key].icon }}</span>
+            <span class="weather-label">{{ TIME_OF_DAY[key].label }}</span>
+            <span class="weather-detail">{{ TIME_OF_DAY[key].desc }}</span>
+          </button>
+        </div>
+      </div>
+
       <div class="start-actions">
         <button class="play-btn" @click="startGame()" :disabled="loading">
           {{ loading ? 'Loading rosters...' : 'Play Ball!' }}
@@ -446,6 +463,10 @@
         :home-score="game.home_score"
         :away-total="game.away_total"
         :home-total="game.home_total"
+        :away-hits="game.away_hits || 0"
+        :home-hits="game.home_hits || 0"
+        :away-errors="game.away_errors || 0"
+        :home-errors="game.home_errors || 0"
         :inning="game.inning"
         :is-top="game.is_top"
         :balls="game.balls"
@@ -815,7 +836,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { createNewGame, simulateGame, processPitch, processAtBat, switchPitcher, attemptSteal } from '../services/gameEngine.js'
 import { getAllTeams, getTeamPitchers, getTeamVenue } from '../services/mlbApi.js'
-import { WEATHER_CONDITIONS } from '../services/weather.js'
+import { WEATHER_CONDITIONS, TIME_OF_DAY } from '../services/weather.js'
 import { useSoundEffects } from '../composables/useSoundEffects.js'
 import BaseballDiamond from './BaseballDiamond.vue'
 import Scoreboard from './Scoreboard.vue'
@@ -998,6 +1019,7 @@ const classicMatchupData = ref(null)
  * Auto-set from historical matchup data or manually chosen on step 6.
  */
 const selectedWeather = ref('clear')
+const selectedTimeOfDay = ref(null)
 
 /**
  * Selected venue name displayed below the matchup title during gameplay.
@@ -1018,6 +1040,7 @@ const awayVenue = ref(null)
  * All weather condition keys for the weather picker UI.
  */
 const weatherKeys = Object.keys(WEATHER_CONDITIONS)
+const timeOfDayKeys = Object.keys(TIME_OF_DAY)
 
 // ============================================================
 // SIMULATION REPLAY STATE
@@ -1544,6 +1567,7 @@ async function startGame() {
       awaySeason: selectedAwaySeason.value,
       awayPitcherId: selectedAwayPitcherId.value,
       weather: selectedWeather.value,
+      timeOfDay: selectedTimeOfDay.value,
     })
   } finally {
     loading.value = false
@@ -1607,6 +1631,7 @@ async function startSimulation() {
       awaySeason: selectedAwaySeason.value,
       awayPitcherId: selectedAwayPitcherId.value,
       weather: selectedWeather.value,
+      timeOfDay: selectedTimeOfDay.value,
       classicRelievers: _buildClassicRelievers(),
     })
     // Aaron 715 hook: force HR on his 2nd PA during simulation
@@ -1782,6 +1807,7 @@ async function resetGame() {
   awayPitcherList.value = []
   selectedAwayPitcherId.value = null
   selectedWeather.value = 'clear'
+  selectedTimeOfDay.value = null
   selectedVenue.value = ''
   homeVenue.value = null
   awayVenue.value = null

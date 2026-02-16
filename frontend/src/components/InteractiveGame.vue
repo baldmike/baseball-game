@@ -620,15 +620,6 @@
       </div>
 
       <!--
-        Last Play Banner — shows the most recent play description from the backend.
-        Styled prominently in yellow on a dark background so the user can see
-        what just happened at a glance.
-      -->
-      <div class="last-play" v-if="game.last_play">
-        <p>{{ game.last_play }}</p>
-      </div>
-
-      <!--
         ==================== SIMULATION SPEED CONTROLS ====================
         Shown only during an automated simulation replay (simulating = true).
 
@@ -747,7 +738,11 @@
               Take
             </button>
           </div>
-          <div v-if="canSteal" class="button-group steal-group">
+          <div v-if="pendingSteal != null" class="button-group steal-group">
+            <span class="steal-pending-label">Runner going! Pick your action...</span>
+            <button class="action-btn steal-btn cancel-steal" @click="pendingSteal = null" :disabled="loading">Cancel</button>
+          </div>
+          <div v-else-if="canSteal" class="button-group steal-group">
             <button
               v-if="game.bases[0] && !game.bases[1]"
               class="action-btn steal-btn"
@@ -775,6 +770,15 @@
           </button>
           <button class="action-btn bottom-ctrl-btn" @click="simulateRest()" :disabled="loading">Simulate Rest of Game</button>
         </div>
+      </div>
+
+      <!--
+        Last Play Banner — shows the most recent play description from the backend.
+        Styled prominently in yellow on a dark background so the user can see
+        what just happened at a glance.
+      -->
+      <div class="last-play" v-if="game.last_play">
+        <p>{{ game.last_play }}</p>
       </div>
 
       <!--
@@ -2310,9 +2314,22 @@ function dismissAaronAnnouncement() {
   if (simulating.value) startReplayTimer()
 }
 
+/** Pending steal: set when the user clicks a steal button, resolved on next swing/take/bunt. */
+const pendingSteal = ref(null)
+
 function doBat(action) {
   _saveSnapshot()
   _checkAaron715(game.value)
+  // Resolve pending steal before the at-bat
+  if (pendingSteal.value != null) {
+    attemptSteal(game.value, pendingSteal.value)
+    pendingSteal.value = null
+    // If caught stealing ended the half-inning, skip the at-bat
+    if (game.value.game_status !== 'active' || game.value.player_role !== 'batting') {
+      game.value = { ...game.value }
+      return
+    }
+  }
   processAtBat(game.value, action)
   _afterAaron715(game.value)
   for (const id in warmingUp.value) {
@@ -2336,18 +2353,12 @@ const canSteal = computed(() => {
 })
 
 /**
- * Attempt a steal and then process a pitch (batter "takes" while runner goes).
- * The steal + pitch happen as a single action from the player's perspective.
+ * Queue a steal attempt. The steal resolves when the user picks their
+ * next batting action (swing/take/bunt), so they don't see the outcome
+ * until the pitch plays out.
  */
 function doSteal(baseIdx) {
-  _saveSnapshot()
-  attemptSteal(game.value, baseIdx)
-  // A steal happens during a pitch — the batter takes while the runner goes.
-  // Only process the pitch if the half-inning didn't end (caught stealing for 3rd out).
-  if (game.value.game_status === 'active' && game.value.player_role === 'batting') {
-    processAtBat(game.value, 'take')
-  }
-  game.value = { ...game.value }
+  pendingSteal.value = baseIdx
 }
 
 /**
@@ -3368,6 +3379,24 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
 .steal-btn:hover:not(:disabled) {
   background: #e94560;
   color: #0a0a1a;
+}
+
+.steal-pending-label {
+  color: #ff9800;
+  font-size: 13px;
+  font-weight: 600;
+  animation: pulse-steal 1s ease-in-out infinite;
+}
+
+@keyframes pulse-steal {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.cancel-steal {
+  font-size: 12px;
+  padding: 4px 10px;
+  min-width: auto;
 }
 
 .pickoff-group {

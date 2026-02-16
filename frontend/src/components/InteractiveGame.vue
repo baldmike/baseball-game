@@ -587,7 +587,7 @@
           <div v-if="!game.is_top" class="fatigue-meter">
             <span class="pitch-count">{{ game.away_pitch_count }} pitches</span>
             <div class="fatigue-bar">
-              <div class="fatigue-fill" :style="{ width: awayFatiguePercent + '%' }" :class="awayFatigueLevel"></div>
+              <div class="fatigue-fill" :style="{ width: (100 - awayFatiguePercent) + '%' }" :class="awayFatigueLevel"></div>
             </div>
           </div>
         </div>
@@ -613,7 +613,7 @@
           <div v-if="game.is_top" class="fatigue-meter">
             <span class="pitch-count">{{ game.home_pitch_count }} pitches</span>
             <div class="fatigue-bar">
-              <div class="fatigue-fill" :style="{ width: homeFatiguePercent + '%' }" :class="homeFatigueLevel"></div>
+              <div class="fatigue-fill" :style="{ width: (100 - homeFatiguePercent) + '%' }" :class="homeFatigueLevel"></div>
             </div>
           </div>
         </div>
@@ -3928,10 +3928,10 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
 
 .fatigue-bar {
   width: 100%;
-  height: 4px;
+  height: 6px;
   background: #333;
-  border-radius: 2px;
-  margin-top: 2px;
+  border-radius: 3px;
+  margin-top: 4px;
   overflow: hidden;
 }
 

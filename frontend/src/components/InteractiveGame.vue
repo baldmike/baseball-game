@@ -1895,6 +1895,11 @@ const canSteal = computed(() => {
 
 function doSteal(baseIdx) {
   attemptSteal(game.value, baseIdx)
+  // A steal happens during a pitch — the batter takes while the runner goes.
+  // Only process the pitch if the half-inning didn't end (caught stealing for 3rd out).
+  if (game.value.game_status === 'active' && game.value.player_role === 'batting') {
+    processAtBat(game.value, 'take')
+  }
   game.value = { ...game.value }
 }
 

@@ -688,10 +688,14 @@
             >
               {{ pitch.label }}
             </button>
-          </div>
-          <div class="bullpen-controls">
-            <button v-if="game.home_bullpen.length" class="change-pitcher-btn" @click="showBullpen = true">
-              Change Pitcher ({{ currentPitchCount }})
+            <button v-if="game.bases[0]" class="action-btn pickoff-btn" @click="doPickoff(0)" :disabled="loading">
+              Throw to 1st
+            </button>
+            <button v-if="game.bases[1]" class="action-btn pickoff-btn" @click="doPickoff(1)" :disabled="loading">
+              Throw to 2nd
+            </button>
+            <button v-if="game.bases[2]" class="action-btn pickoff-btn" @click="doPickoff(2)" :disabled="loading">
+              Throw to 3rd
             </button>
           </div>
           <!-- Bullpen modal -->
@@ -711,27 +715,16 @@
                     <span class="warmup-tally">{{ warmingUp[p.id].pitches }}/{{ WARMUP_PITCHES_NEEDED }}</span>
                     <button v-if="warmingUp[p.id].pitches >= WARMUP_PITCHES_NEEDED" class="bullpen-ready-btn" @click="doSwitchPitcher(p)">Put In</button>
                   </div>
-                  <button v-else class="warmup-start-btn" @click="startWarmup(p)">Warm Up</button>
+                  <button v-else class="warmup-start-btn" @click="startWarmup(p); showBullpen = false">Warm Up</button>
                 </div>
               </div>
               <button class="bullpen-cancel" @click="showBullpen = false">Cancel</button>
             </div>
           </div>
-          <div v-if="Object.keys(warmingUp).length" class="warmup-indicator">
+          <div v-if="Object.keys(warmingUp).length" class="warmup-indicator" @click="showBullpen = true">
             <span v-for="(w, id) in warmingUp" :key="id" class="warmup-chip">
               {{ w.name }}: {{ w.pitches }}/{{ WARMUP_PITCHES_NEEDED }} {{ w.pitches >= WARMUP_PITCHES_NEEDED ? '\u2713' : '' }}
             </span>
-          </div>
-          <div v-if="canPickoff" class="button-group pickoff-group">
-            <button v-if="game.bases[0]" class="action-btn pickoff-btn" @click="doPickoff(0)" :disabled="loading">
-              Throw to 1st
-            </button>
-            <button v-if="game.bases[1]" class="action-btn pickoff-btn" @click="doPickoff(1)" :disabled="loading">
-              Throw to 2nd
-            </button>
-            <button v-if="game.bases[2]" class="action-btn pickoff-btn" @click="doPickoff(2)" :disabled="loading">
-              Throw to 3rd
-            </button>
           </div>
         </div>
 
@@ -773,7 +766,12 @@
           </div>
         </div>
         <button v-if="lastSnapshot && showDoOver" class="action-btn doover-btn" @click="doOver()" :disabled="loading">Do Over!</button>
-        <button class="action-btn sim-rest-btn" @click="simulateRest()" :disabled="loading">Simulate Rest of Game</button>
+        <div class="bottom-controls-row">
+          <button v-if="game.player_role === 'pitching' && game.home_bullpen.length" class="action-btn bottom-ctrl-btn" @click="showBullpen = true" :disabled="loading">
+            Change Pitcher ({{ currentPitchCount }})
+          </button>
+          <button class="action-btn bottom-ctrl-btn" @click="simulateRest()" :disabled="loading">Simulate Rest of Game</button>
+        </div>
       </div>
 
       <!--
@@ -1380,7 +1378,7 @@ const showBullpen = ref(false)
 
 /** Warmup state: tracks which bullpen pitchers are warming up and their pitch tally. */
 const warmingUp = ref({})  // { pitcherId: { name, pitches } }
-const WARMUP_PITCHES_NEEDED = 25
+const WARMUP_PITCHES_NEEDED = 13
 
 // ============================================================
 // COMPUTED PROPERTIES
@@ -3295,6 +3293,31 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
   color: #e0e0e0;
 }
 
+.bottom-controls-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bottom-ctrl-btn {
+  flex: 1;
+  max-width: 220px;
+  background: transparent;
+  color: #888;
+  border: 1px solid #555;
+  padding: 8px 16px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bottom-ctrl-btn:hover:not(:disabled) {
+  border-color: #ff9800;
+  color: #e0e0e0;
+}
+
 .doover-btn {
   display: block;
   margin: 10px auto 0;
@@ -4109,6 +4132,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
   gap: 6px;
   justify-content: center;
   margin-top: 8px;
+  cursor: pointer;
 }
 
 .warmup-chip {

@@ -4872,14 +4872,16 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
     padding: 16px 10px;
   }
 
-  /* Stack field layout vertically: pitcher on top, diamond, batter below */
+  /* Stack field layout vertically and center everything */
   .field-layout {
     flex-direction: column;
+    align-items: center;
     gap: 4px;
   }
 
   .player-card {
     flex-direction: row;
+    justify-content: center;
     width: auto;
     min-height: auto;
     gap: 8px;

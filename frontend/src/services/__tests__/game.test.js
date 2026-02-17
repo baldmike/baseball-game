@@ -1565,3 +1565,143 @@ describe('squeeze play', () => {
     expect(state.bases[0]).toBe(true)
   })
 })
+
+// ──────────────────────────────────────────────
+// PICKOFF LEADOFF — higher success rate when runner is leading off
+// ──────────────────────────────────────────────
+describe('pickoff with leadoff', () => {
+  it('pickoff uses higher rate (0.30) when leadoff=true', () => {
+    const state = makeGameState()
+    state.player_role = 'pitching'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    // 0.20 is above PICKOFF_SUCCESS_RATE (0.15) but below PICKOFF_LEADOFF_RATE (0.30)
+    vi.spyOn(Math, 'random').mockReturnValue(0.20)
+    attemptPickoff(state, 0, true)
+    Math.random.mockRestore()
+    // Should succeed because 0.20 < 0.30 (leadoff rate)
+    expect(state.bases[0]).toBe(false)
+    expect(state.outs).toBe(1)
+    expect(state.last_play).toMatch(/Picked off/)
+  })
+
+  it('pickoff uses normal rate (0.15) when leadoff=false', () => {
+    const state = makeGameState()
+    state.player_role = 'pitching'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    // 0.20 is above PICKOFF_SUCCESS_RATE (0.15) → should fail without leadoff
+    vi.spyOn(Math, 'random').mockReturnValue(0.20)
+    attemptPickoff(state, 0, false)
+    Math.random.mockRestore()
+    expect(state.bases[0]).toBe(true)
+    expect(state.outs).toBe(0)
+    expect(state.last_play).toMatch(/safe/)
+  })
+
+  it('pickoff uses normal rate when leadoff param is omitted', () => {
+    const state = makeGameState()
+    state.player_role = 'pitching'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    // 0.20 is above 0.15 → should fail without leadoff arg
+    vi.spyOn(Math, 'random').mockReturnValue(0.20)
+    attemptPickoff(state, 0)
+    Math.random.mockRestore()
+    expect(state.bases[0]).toBe(true)
+    expect(state.outs).toBe(0)
+    expect(state.last_play).toMatch(/safe/)
+  })
+
+  it('pickoff with leadoff=true still fails when roll exceeds leadoff rate', () => {
+    const state = makeGameState()
+    state.player_role = 'pitching'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    // 0.50 is above both rates → should fail even with leadoff
+    vi.spyOn(Math, 'random').mockReturnValue(0.50)
+    attemptPickoff(state, 0, true)
+    Math.random.mockRestore()
+    expect(state.bases[0]).toBe(true)
+    expect(state.outs).toBe(0)
+    expect(state.last_play).toMatch(/safe/)
+  })
+
+  it('pickoff leadoff works on 2nd and 3rd base too', () => {
+    // 2nd base
+    const state2 = makeGameState()
+    state2.player_role = 'pitching'
+    state2.bases = [false, true, false]
+    state2.runner_indices = [null, 1, null]
+    vi.spyOn(Math, 'random').mockReturnValue(0.20)
+    attemptPickoff(state2, 1, true)
+    Math.random.mockRestore()
+    expect(state2.bases[1]).toBe(false)
+    expect(state2.outs).toBe(1)
+
+    // 3rd base
+    const state3 = makeGameState()
+    state3.player_role = 'pitching'
+    state3.bases = [false, false, true]
+    state3.runner_indices = [null, null, 2]
+    vi.spyOn(Math, 'random').mockReturnValue(0.20)
+    attemptPickoff(state3, 2, true)
+    Math.random.mockRestore()
+    expect(state3.bases[2]).toBe(false)
+    expect(state3.outs).toBe(1)
+  })
+})
+
+// ──────────────────────────────────────────────
+// INNING TRANSITION — last_play message format
+// ──────────────────────────────────────────────
+describe('inning transition messages', () => {
+  it('end of top half produces "--- Bottom of inning N ---" message', () => {
+    const state = makeGameState()
+    // Force 3 quick outs in top of 1st
+    state._outcomeFilter = () => 'groundout'
+    for (let i = 0; i < 3; i++) {
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      processPitch(state, 'fastball')
+      Math.random.mockRestore()
+    }
+    expect(state.last_play).toBe('--- Bottom of inning 1 ---')
+    expect(state.is_top).toBe(false)
+    expect(state.inning).toBe(1)
+  })
+
+  it('end of bottom half produces "--- Top of inning N ---" message', () => {
+    const state = makeGameState()
+    state._outcomeFilter = () => 'groundout'
+    // End top of 1st
+    for (let i = 0; i < 3; i++) {
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      processPitch(state, 'fastball')
+      Math.random.mockRestore()
+    }
+    // Now bottom of 1st — player is batting
+    expect(state.player_role).toBe('batting')
+    for (let i = 0; i < 3; i++) {
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      processAtBat(state, 'swing')
+      Math.random.mockRestore()
+    }
+    expect(state.last_play).toBe('--- Top of inning 2 ---')
+    expect(state.is_top).toBe(true)
+    expect(state.inning).toBe(2)
+  })
+
+  it('transition message matches regex pattern used by inning banner', () => {
+    const state = makeGameState()
+    state._outcomeFilter = () => 'groundout'
+    for (let i = 0; i < 3; i++) {
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      processPitch(state, 'fastball')
+      Math.random.mockRestore()
+    }
+    const match = state.last_play.match(/^--- (Top|Bottom) of inning (\d+) ---$/)
+    expect(match).not.toBeNull()
+    expect(match[1]).toBe('Bottom')
+    expect(match[2]).toBe('1')
+  })
+})

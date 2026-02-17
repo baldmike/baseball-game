@@ -538,6 +538,24 @@
         </div>
       </div>
 
+      <!-- Inning transition banner -->
+      <div
+        v-if="inningBannerActive"
+        class="game-over-overlay inning-banner-overlay"
+        :class="{ 'banner-exiting': inningBannerExiting }"
+        @click="dismissInningBanner"
+      >
+        <div class="inning-banner-card" :class="{ 'banner-exiting': inningBannerExiting }">
+          <p class="inning-banner-ended">End of the {{ inningBannerData.endedHalf }} of the {{ inningBannerData.endedInning }}</p>
+          <div class="inning-banner-score">
+            <span>{{ inningBannerData.awayAbbr }} {{ inningBannerData.awayTotal }}</span>
+            <span class="inning-banner-dash">&mdash;</span>
+            <span>{{ inningBannerData.homeAbbr }} {{ inningBannerData.homeTotal }}</span>
+          </div>
+          <p class="inning-banner-coming">Coming up: {{ inningBannerData.comingHalf }} of the {{ inningBannerData.comingInning }}</p>
+        </div>
+      </div>
+
       <!--
         Scoreboard component — displays the line score grid with per-inning runs,
         ball-strike count, outs, and current inning. All data is passed as props.
@@ -614,7 +632,7 @@
         </div>
 
         <!-- Baseball diamond SVG — shows base occupancy with runner dots -->
-        <BaseballDiamond :bases="game.bases" />
+        <BaseballDiamond :bases="game.bases" :leadoffs="runnerLeadoffs" />
 
         <!-- Home team card (right side) -->
         <div class="player-card batter-side">
@@ -729,11 +747,36 @@
           <button class="action-btn sim-btn" @click="simulateRest()" :disabled="loading">Start Sim</button>
         </div>
 
-        <!-- Pickoff buttons (pitching only) — always rendered, disabled when base empty -->
-        <div v-if="game.player_role === 'pitching'" class="pickoff-bar">
+        <!-- Pickoff buttons (pitching only) — shown when at least one runner on base -->
+        <div v-if="game.player_role === 'pitching' && (game.bases[0] || game.bases[1] || game.bases[2])" class="pickoff-bar">
           <button class="action-btn pickoff-btn" @click="doPickoff(0)" :disabled="loading || !game.bases[0]">Throw to 1st</button>
           <button class="action-btn pickoff-btn" @click="doPickoff(1)" :disabled="loading || !game.bases[1]">Throw to 2nd</button>
           <button class="action-btn pickoff-btn" @click="doPickoff(2)" :disabled="loading || !game.bases[2]">Throw to 3rd</button>
+        </div>
+
+        <!-- Leadoff buttons (batting only) — shown when runners are on base -->
+        <div v-if="game.player_role === 'batting' && (game.bases[0] || game.bases[1] || game.bases[2])" class="leadoff-bar">
+          <button
+            v-if="game.bases[0]"
+            class="action-btn leadoff-btn"
+            :class="{ active: runnerLeadoffs[0] }"
+            @click="toggleLeadoff(0)"
+            :disabled="loading"
+          >Lead off 1st</button>
+          <button
+            v-if="game.bases[1]"
+            class="action-btn leadoff-btn"
+            :class="{ active: runnerLeadoffs[1] }"
+            @click="toggleLeadoff(1)"
+            :disabled="loading"
+          >Lead off 2nd</button>
+          <button
+            v-if="game.bases[2]"
+            class="action-btn leadoff-btn"
+            :class="{ active: runnerLeadoffs[2] }"
+            @click="toggleLeadoff(2)"
+            :disabled="loading"
+          >Lead off 3rd</button>
         </div>
 
         <!-- Steal controls (batting only) -->
@@ -2332,6 +2375,7 @@ function doPitch(pitchType) {
   _saveSnapshot()
   _checkAaron715(game.value)
   processPitch(game.value, pitchType)
+  clearLeadoffs()
   _afterAaron715(game.value)
   for (const id in warmingUp.value) {
     warmingUp.value[id].pitches++
@@ -2349,6 +2393,11 @@ const aaronVideoOpened = ref(false)
 const aaronAnnouncement = ref(false)
 const showDiscoVideo = ref(false)
 const showEllisNoNo = ref(false)
+
+const inningBannerActive = ref(false)
+const inningBannerData = ref(null)
+const inningBannerExiting = ref(false)
+let inningBannerTimer = null
 
 // Show Disco Demolition video when that game ends
 watch(() => game.value?.game_status, (status) => {
@@ -2474,6 +2523,18 @@ function dismissCalledShot() {
 /** Pending steal: set when the user clicks a steal button, resolved on next swing/take/bunt. */
 const pendingSteal = ref(null)
 
+/** Runner leadoff state: [1st, 2nd, 3rd] — true if that runner is leading off. */
+const runnerLeadoffs = ref([false, false, false])
+
+function toggleLeadoff(baseIdx) {
+  runnerLeadoffs.value[baseIdx] = !runnerLeadoffs.value[baseIdx]
+  runnerLeadoffs.value = [...runnerLeadoffs.value]
+}
+
+function clearLeadoffs() {
+  runnerLeadoffs.value = [false, false, false]
+}
+
 function doBat(action) {
   // Babe Ruth's Called Shot: intercept when player is batting as Ruth
   if (!calledShotShown && _isCalledShotPA(game.value)) {
@@ -2497,6 +2558,7 @@ function doBat(action) {
     }
   }
   processAtBat(game.value, action)
+  clearLeadoffs()
   _afterAaron715(game.value)
   for (const id in warmingUp.value) {
     warmingUp.value[id].pitches++
@@ -2543,7 +2605,8 @@ const canPickoff = computed(() => {
  */
 function doPickoff(baseIdx) {
   _saveSnapshot()
-  attemptPickoff(game.value, baseIdx)
+  attemptPickoff(game.value, baseIdx, runnerLeadoffs.value[baseIdx])
+  clearLeadoffs()
   game.value = { ...game.value }
 }
 
@@ -2604,9 +2667,58 @@ watch(
   (newPlay, oldPlay) => {
     if (newPlay && newPlay !== oldPlay) {
       playForLastPlay(newPlay)
+
+      // Detect inning transition: "--- Top/Bottom of inning N ---"
+      const m = newPlay.match(/^--- (Top|Bottom) of inning (\d+) ---$/)
+      if (m) {
+        const comingHalf = m[1]       // what's coming up
+        const comingInning = Number(m[2])
+        // The half that just ended is the opposite
+        const endedHalf = comingHalf === 'Top' ? 'Bottom' : 'Top'
+        const endedInning = comingHalf === 'Top' ? comingInning - 1 : comingInning
+
+        // Don't show banner for the very first half-inning
+        if (endedInning >= 1) {
+          const ordinal = _ordinal(endedInning)
+          const nextOrdinal = _ordinal(comingInning)
+          inningBannerData.value = {
+            endedHalf,
+            endedInning: ordinal,
+            comingHalf,
+            comingInning: nextOrdinal,
+            awayAbbr: game.value.away_abbreviation || 'AWAY',
+            homeAbbr: game.value.home_abbreviation || 'HOME',
+            awayTotal: game.value.away_total,
+            homeTotal: game.value.home_total,
+          }
+          inningBannerExiting.value = false
+          inningBannerActive.value = true
+
+          clearTimeout(inningBannerTimer)
+          inningBannerTimer = setTimeout(() => {
+            inningBannerExiting.value = true
+            setTimeout(() => {
+              inningBannerActive.value = false
+              inningBannerExiting.value = false
+            }, 500)
+          }, 3000)
+        }
+      }
     }
   }
 )
+
+function _ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+
+function dismissInningBanner() {
+  clearTimeout(inningBannerTimer)
+  inningBannerActive.value = false
+  inningBannerExiting.value = false
+}
 
 // Auto-advance the outcome banner to the latest entry when new plays are logged
 watch(
@@ -3258,8 +3370,9 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   bottom: 0;
   background: rgba(0, 0, 0, 0.85);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 10%;
   z-index: 10;
   border-radius: 8px;
 }
@@ -3546,6 +3659,29 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 .pickoff-btn:hover:not(:disabled) {
   background: #5b9bd5;
+  color: white;
+}
+
+.leadoff-bar {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.leadoff-btn {
+  background: #3a3a4a;
+  color: #8b8b8b;
+  border-color: #8b8b8b;
+}
+
+.leadoff-btn:hover:not(:disabled) {
+  background: #8b8b8b;
+  color: white;
+}
+
+.leadoff-btn.active {
+  background: #8b8b8b;
   color: white;
 }
 
@@ -4778,5 +4914,60 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 .weather-banner-text {
   font-size: 13px;
+}
+
+/* ========== Inning Transition Banner ========== */
+@keyframes banner-enter {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes banner-exit {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.inning-banner-overlay {
+  cursor: pointer;
+}
+
+.inning-banner-overlay.banner-exiting {
+  animation: banner-exit 0.5s ease-out forwards;
+}
+
+.inning-banner-card {
+  text-align: center;
+  padding: 32px 48px;
+  animation: banner-enter 0.5s ease-out;
+}
+
+.inning-banner-card.banner-exiting {
+  animation: banner-exit 0.5s ease-out forwards;
+}
+
+.inning-banner-ended {
+  font-size: 20px;
+  color: #ccc;
+  margin: 0 0 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.inning-banner-score {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.inning-banner-dash {
+  margin: 0 12px;
+  color: #888;
+}
+
+.inning-banner-coming {
+  font-size: 16px;
+  color: #aaa;
+  margin: 0;
 }
 </style>

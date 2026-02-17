@@ -68,7 +68,7 @@
         fill="white" stroke="#ccc" stroke-width="1.5"
         transform="rotate(45, 170, 100)"
       />
-      <g v-else transform="translate(170, 97)">
+      <g v-else :transform="`translate(${leadoffs[0] ? 162 : 170}, ${leadoffs[0] ? 89 : 97})`">
         <circle cx="0" cy="-11" r="3" fill="#111" />
         <line x1="0" y1="-8" x2="0" y2="-1" stroke="#111" stroke-width="1.5" stroke-linecap="round" />
         <line x1="-4" y1="-7" x2="4" y2="-4" stroke="#111" stroke-width="1.2" stroke-linecap="round" />
@@ -83,7 +83,7 @@
         fill="white" stroke="#ccc" stroke-width="1.5"
         transform="rotate(45, 100, 30)"
       />
-      <g v-else transform="translate(100, 27)">
+      <g v-else :transform="`translate(${leadoffs[1] ? 91 : 100}, ${leadoffs[1] ? 36 : 27})`">
         <circle cx="0" cy="-11" r="3" fill="#111" />
         <line x1="0" y1="-8" x2="0" y2="-1" stroke="#111" stroke-width="1.5" stroke-linecap="round" />
         <line x1="-4" y1="-7" x2="4" y2="-4" stroke="#111" stroke-width="1.2" stroke-linecap="round" />
@@ -98,7 +98,7 @@
         fill="white" stroke="#ccc" stroke-width="1.5"
         transform="rotate(45, 30, 100)"
       />
-      <g v-else transform="translate(30, 97)">
+      <g v-else :transform="`translate(${leadoffs[2] ? 39 : 30}, ${leadoffs[2] ? 107 : 97})`">
         <circle cx="0" cy="-11" r="3" fill="#111" />
         <line x1="0" y1="-8" x2="0" y2="-1" stroke="#111" stroke-width="1.5" stroke-linecap="round" />
         <line x1="-4" y1="-7" x2="4" y2="-4" stroke="#111" stroke-width="1.2" stroke-linecap="round" />
@@ -134,6 +134,10 @@
  */
 defineProps({
   bases: {
+    type: Array,
+    default: () => [false, false, false],
+  },
+  leadoffs: {
     type: Array,
     default: () => [false, false, false],
   },

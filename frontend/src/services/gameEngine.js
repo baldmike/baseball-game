@@ -1047,6 +1047,9 @@ export function processAtBat(state, action) {
 /** MLB pickoff success rate when attempted is ~10-20%. */
 const PICKOFF_SUCCESS_RATE = 0.15
 
+/** Higher pickoff success rate when the runner is leading off. */
+const PICKOFF_LEADOFF_RATE = 0.30
+
 /** MLB average stolen base success rate is ~75%. */
 const STEAL_SUCCESS_RATE = 0.75
 
@@ -1153,7 +1156,7 @@ export function attemptSteal(state, baseIdx) {
  * On failure: runner is safe, no state change except log + pitch count.
  * Returns the updated state.
  */
-export function attemptPickoff(state, baseIdx) {
+export function attemptPickoff(state, baseIdx, leadoff) {
   if (!state || state.game_status !== 'active') return state || {}
   if (state.player_role !== 'pitching') {
     state.last_play = "You can only attempt a pickoff while pitching!"
@@ -1169,8 +1172,9 @@ export function attemptPickoff(state, baseIdx) {
   const runnerIdx = state.runner_indices[baseIdx]
   const runnerName = (box && runnerIdx != null) ? box[runnerIdx]?.name || 'Runner' : 'Runner'
   const baseLabel = baseIdx === 0 ? '1st' : baseIdx === 1 ? '2nd' : '3rd'
+  const rate = leadoff ? PICKOFF_LEADOFF_RATE : PICKOFF_SUCCESS_RATE
 
-  if (Math.random() < PICKOFF_SUCCESS_RATE) {
+  if (Math.random() < rate) {
     // Picked off
     state.bases[baseIdx] = false
     state.runner_indices[baseIdx] = null

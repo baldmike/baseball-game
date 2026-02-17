@@ -2548,6 +2548,32 @@ function doOver() {
  *
  * @param {string} pitchType - One of 'fastball', 'curveball', 'slider', 'changeup'
  */
+/**
+ * After the engine processes a pitch/bat, check if an inning transition occurred.
+ * If so, hold back the new-inning state and display the 3rd-out result first.
+ * The banner timer will release the pending state when it's time.
+ */
+function _applyGameUpdate(prevInning, prevIsTop) {
+  const st = game.value
+  // Only freeze display for mid-game inning transitions, not game-over
+  if (st.game_status === 'active' && (st.inning !== prevInning || st.is_top !== prevIsTop)) {
+    // Inning changed — save the new state aside, show old state with 3rd-out play
+    pendingNextInningState = { ...st }
+    // Find the 3rd-out play (the entry before the "--- Top/Bottom ---" transition message)
+    const log = st.play_log || []
+    const lastPlay = log.length >= 2 ? log[log.length - 2] : st.last_play
+    // Display the pre-transition view: old inning/half, 3rd-out message
+    game.value = {
+      ...st,
+      inning: prevInning,
+      is_top: prevIsTop,
+      last_play: lastPlay,
+    }
+  } else {
+    game.value = { ...st }
+  }
+}
+
 function doPitch(pitchType) {
   // Babe Ruth's Called Shot: intercept on his 3rd PA
   if (!calledShotShown && _isCalledShotPA(game.value)) {
@@ -2556,13 +2582,15 @@ function doPitch(pitchType) {
   }
   _saveSnapshot()
   _checkAaron715(game.value)
+  const prevInning = game.value.inning
+  const prevIsTop = game.value.is_top
   processPitch(game.value, pitchType)
   clearLeadoffs()
   _afterAaron715(game.value)
   for (const id in warmingUp.value) {
     warmingUp.value[id].pitches++
   }
-  game.value = { ...game.value }
+  _applyGameUpdate(prevInning, prevIsTop)
 }
 
 /**
@@ -2580,6 +2608,7 @@ const inningBannerActive = ref(false)
 const inningBannerData = ref(null)
 const inningBannerExiting = ref(false)
 let inningBannerTimer = null
+let pendingNextInningState = null
 
 // Show Disco Demolition video when that game ends
 watch(() => game.value?.game_status, (status) => {
@@ -2729,13 +2758,15 @@ function doBat(action) {
   }
   _saveSnapshot()
   _checkAaron715(game.value)
+  const prevInning = game.value.inning
+  const prevIsTop = game.value.is_top
   // Resolve pending steal before the at-bat
   if (pendingSteal.value != null) {
     attemptSteal(game.value, pendingSteal.value)
     pendingSteal.value = null
     // If caught stealing ended the half-inning, skip the at-bat
     if (game.value.game_status !== 'active' || game.value.player_role !== 'batting') {
-      game.value = { ...game.value }
+      _applyGameUpdate(prevInning, prevIsTop)
       return
     }
   }
@@ -2745,7 +2776,7 @@ function doBat(action) {
   for (const id in warmingUp.value) {
     warmingUp.value[id].pitches++
   }
-  game.value = { ...game.value }
+  _applyGameUpdate(prevInning, prevIsTop)
 }
 
 /**
@@ -2850,56 +2881,52 @@ watch(
     if (newPlay && newPlay !== oldPlay) {
       playForLastPlay(newPlay)
 
-      // Detect inning transition: "--- Top/Bottom of inning N ---"
-      const m = newPlay.match(/^--- (Top|Bottom) of inning (\d+) ---$/)
-      if (m) {
-        const comingHalf = m[1]       // what's coming up
-        const comingInning = Number(m[2])
-        // The half that just ended is the opposite
-        const endedHalf = comingHalf === 'Top' ? 'Bottom' : 'Top'
-        const endedInning = comingHalf === 'Top' ? comingInning - 1 : comingInning
+      // Detect inning transition: the 3rd-out play is shown while
+      // pendingNextInningState holds the real next-inning state.
+      if (pendingNextInningState) {
+        const pending = pendingNextInningState
+        const m = pending.last_play.match(/^--- (Top|Bottom) of inning (\d+) ---$/)
+        if (m) {
+          const comingHalf = m[1]
+          const comingInning = Number(m[2])
+          const endedHalf = comingHalf === 'Top' ? 'Bottom' : 'Top'
+          const endedInning = comingHalf === 'Top' ? comingInning - 1 : comingInning
 
-        // Don't show banner for the very first half-inning
-        if (endedInning >= 1) {
-          const ordinal = _ordinal(endedInning)
-          const nextOrdinal = _ordinal(comingInning)
+          if (endedInning >= 1) {
+            const ordinal = _ordinal(endedInning)
+            const nextOrdinal = _ordinal(comingInning)
 
-          // Show the last play result in the outcome box for 2 seconds
-          // before showing the inning transition overlay.
-          // Rewind the play log index to the play before this transition message.
-          const log = game.value.play_log || []
-          const transIdx = log.length - 1
-          if (transIdx > 0) {
-            playLogIndex.value = transIdx - 1
-          }
-
-          clearTimeout(inningBannerTimer)
-          inningBannerTimer = setTimeout(() => {
-            // Restore play log to latest entry
-            playLogIndex.value = (game.value.play_log || []).length - 1
-
-            inningBannerData.value = {
-              endedHalf,
-              endedInning: ordinal,
-              comingHalf,
-              comingInning: nextOrdinal,
-              awayAbbr: game.value.away_abbreviation || 'AWAY',
-              homeAbbr: game.value.home_abbreviation || 'HOME',
-              awayTotal: game.value.away_total,
-              homeTotal: game.value.home_total,
-            }
-            inningBannerExiting.value = false
-            inningBannerActive.value = true
-
+            // Show 3rd-out play for 2s, then banner, then release next inning
             clearTimeout(inningBannerTimer)
             inningBannerTimer = setTimeout(() => {
-              inningBannerExiting.value = true
-              setTimeout(() => {
-                inningBannerActive.value = false
-                inningBannerExiting.value = false
-              }, 500)
-            }, 2400)
-          }, 2000)
+              inningBannerData.value = {
+                endedHalf,
+                endedInning: ordinal,
+                comingHalf,
+                comingInning: nextOrdinal,
+                awayAbbr: pending.away_abbreviation || 'AWAY',
+                homeAbbr: pending.home_abbreviation || 'HOME',
+                awayTotal: pending.away_total,
+                homeTotal: pending.home_total,
+              }
+              inningBannerExiting.value = false
+              inningBannerActive.value = true
+
+              clearTimeout(inningBannerTimer)
+              inningBannerTimer = setTimeout(() => {
+                inningBannerExiting.value = true
+                setTimeout(() => {
+                  inningBannerActive.value = false
+                  inningBannerExiting.value = false
+                  // Release the next-inning state
+                  if (pendingNextInningState) {
+                    game.value = { ...pendingNextInningState }
+                    pendingNextInningState = null
+                  }
+                }, 500)
+              }, 2400)
+            }, 2000)
+          }
         }
       }
     }
@@ -2916,13 +2943,18 @@ function dismissInningBanner() {
   clearTimeout(inningBannerTimer)
   inningBannerActive.value = false
   inningBannerExiting.value = false
+  if (pendingNextInningState) {
+    game.value = { ...pendingNextInningState }
+    pendingNextInningState = null
+  }
 }
 
 // Auto-advance the outcome banner to the latest entry when new plays are logged
+// Skip if we're holding back state for an inning transition
 watch(
   () => game.value?.play_log?.length,
   (len) => {
-    if (len) playLogIndex.value = len - 1
+    if (len && !pendingNextInningState) playLogIndex.value = len - 1
   }
 )
 

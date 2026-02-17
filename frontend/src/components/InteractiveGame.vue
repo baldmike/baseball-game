@@ -590,6 +590,7 @@
       <div class="field-layout">
         <!-- Away team card (left side) -->
         <div class="player-card pitcher-side">
+          <span v-if="game.player_side === 'away'" class="you-dot"></span>
           <div class="headshot-wrapper">
             <img
               v-if="awayFieldPlayer?.id"
@@ -617,6 +618,7 @@
 
         <!-- Home team card (right side) -->
         <div class="player-card batter-side">
+          <span v-if="game.player_side === 'home'" class="you-dot"></span>
           <div class="headshot-wrapper">
             <img
               v-if="homeFieldPlayer?.id"
@@ -681,15 +683,17 @@
         - Batting: user is a home team batter (bottom of inning, home team bats)
       -->
       <div class="controls" v-if="game.game_status === 'active' && !simulating">
-        <!--
-          Pitching Mode — shown when game.player_role === 'pitching'.
-          The user chooses a pitch type (fastball, curveball, slider, changeup),
-          which is sent to the game engine to resolve the at-bat.
-        -->
-        <div v-if="game.player_role === 'pitching'" class="pitch-controls">
-          <div class="mode-label">You're Pitching — Choose your pitch:</div>
-          <div class="button-group">
-            <!-- One button per pitch type from the pitchTypes array -->
+        <div class="action-bar" :class="{ pitching: game.player_role === 'pitching' }">
+          <!-- Left-justified change pitcher button (pitching only) -->
+          <button
+            v-if="game.player_role === 'pitching' && game[myPrefix + '_bullpen'].length"
+            class="action-btn change-pitcher-action-btn"
+            @click="showBullpen = true"
+            :disabled="loading"
+          >Change Pitcher ({{ currentPitchCount }})</button>
+
+          <!-- Pitching buttons -->
+          <template v-if="game.player_role === 'pitching'">
             <button
               v-for="pitch in pitchTypes"
               :key="pitch.value"
@@ -700,55 +704,10 @@
             >
               {{ pitch.label }}
             </button>
-            <button v-if="game.bases[0]" class="action-btn pickoff-btn" @click="doPickoff(0)" :disabled="loading">
-              Throw to 1st
-            </button>
-            <button v-if="game.bases[1]" class="action-btn pickoff-btn" @click="doPickoff(1)" :disabled="loading">
-              Throw to 2nd
-            </button>
-            <button v-if="game.bases[2]" class="action-btn pickoff-btn" @click="doPickoff(2)" :disabled="loading">
-              Throw to 3rd
-            </button>
-          </div>
-          <!-- Bullpen modal -->
-          <div v-if="showBullpen" class="bullpen-overlay" @click.self="showBullpen = false">
-            <div class="bullpen-modal">
-              <h3 class="bullpen-title">Bullpen</h3>
-              <div class="bullpen-list">
-                <div v-for="p in game[myPrefix + '_bullpen']" :key="p.id" class="bullpen-option">
-                  <div class="bullpen-info">
-                    <span class="bullpen-name">{{ p.name }} <span class="pitcher-role-tag">{{ p.role || 'RP' }}</span></span>
-                    <span class="bullpen-stats" v-if="p.stats">ERA {{ p.stats.era.toFixed(2) }} | K/9 {{ p.stats.k_per_9.toFixed(1) }}</span>
-                  </div>
-                  <div v-if="warmingUp[p.id]" class="warmup-status">
-                    <div class="warmup-bar">
-                      <div class="warmup-fill" :style="{ width: Math.min(100, (warmingUp[p.id].pitches / WARMUP_PITCHES_NEEDED) * 100) + '%' }"></div>
-                    </div>
-                    <span class="warmup-tally">{{ warmingUp[p.id].pitches }}/{{ WARMUP_PITCHES_NEEDED }}</span>
-                    <button v-if="warmingUp[p.id].pitches >= WARMUP_PITCHES_NEEDED" class="bullpen-ready-btn" @click="doSwitchPitcher(p)">Put In</button>
-                  </div>
-                  <button v-else class="warmup-start-btn" @click="startWarmup(p); showBullpen = false">Warm Up</button>
-                </div>
-              </div>
-              <button class="bullpen-cancel" @click="showBullpen = false">Cancel</button>
-            </div>
-          </div>
-          <div v-if="Object.keys(warmingUp).length" class="warmup-indicator" @click="showBullpen = true">
-            <span v-for="(w, id) in warmingUp" :key="id" class="warmup-chip">
-              {{ w.name }}: {{ w.pitches }}/{{ WARMUP_PITCHES_NEEDED }} {{ w.pitches >= WARMUP_PITCHES_NEEDED ? '\u2713' : '' }}
-            </span>
-          </div>
-        </div>
+          </template>
 
-        <!--
-          Batting Mode — shown when game.player_role === 'batting'.
-          The user chooses to swing at the pitch or take (let it go by).
-          The engine determines if the pitch was a ball or strike and
-          resolves contact/miss outcomes for swings.
-        -->
-        <div v-if="game.player_role === 'batting'" class="bat-controls">
-          <div class="mode-label">You're Batting — Swing or take?</div>
-          <div class="button-group">
+          <!-- Batting buttons -->
+          <template v-if="game.player_role === 'batting'">
             <button class="action-btn swing-btn" @click="doBat('swing')" :disabled="loading">
               Swing!
             </button>
@@ -758,38 +717,81 @@
             <button class="action-btn take-btn" @click="doBat('take')" :disabled="loading">
               Take
             </button>
-          </div>
-          <div v-if="pendingSteal != null" class="button-group steal-group">
-            <span class="steal-pending-label">Runner going! Pick your action...</span>
-            <button class="action-btn steal-btn cancel-steal" @click="pendingSteal = null" :disabled="loading">Cancel</button>
-          </div>
-          <div v-else-if="canSteal" class="button-group steal-group">
-            <button
-              v-if="game.bases[0] && !game.bases[1]"
-              class="action-btn steal-btn"
-              @click="doSteal(0)"
-              :disabled="loading"
-            >Steal 2nd</button>
-            <button
-              v-if="game.bases[1] && !game.bases[2]"
-              class="action-btn steal-btn"
-              @click="doSteal(1)"
-              :disabled="loading"
-            >Steal 3rd</button>
             <button
               v-if="game.bases[2]"
-              class="action-btn steal-btn"
-              @click="doSteal(2)"
+              class="action-btn bunt-btn"
+              @click="doBat('squeeze')"
               :disabled="loading"
-            >Steal Home</button>
+            >Squeeze</button>
+          </template>
+
+          <!-- Right-justified sim button -->
+          <button class="action-btn sim-btn" @click="simulateRest()" :disabled="loading">Start Sim</button>
+        </div>
+
+        <!-- Pickoff buttons (pitching only) — always rendered, disabled when base empty -->
+        <div v-if="game.player_role === 'pitching'" class="pickoff-bar">
+          <button class="action-btn pickoff-btn" @click="doPickoff(0)" :disabled="loading || !game.bases[0]">Throw to 1st</button>
+          <button class="action-btn pickoff-btn" @click="doPickoff(1)" :disabled="loading || !game.bases[1]">Throw to 2nd</button>
+          <button class="action-btn pickoff-btn" @click="doPickoff(2)" :disabled="loading || !game.bases[2]">Throw to 3rd</button>
+        </div>
+
+        <!-- Steal controls (batting only) -->
+        <div v-if="game.player_role === 'batting' && pendingSteal != null" class="button-group steal-group">
+          <span class="steal-pending-label">Runner going! Pick your action...</span>
+          <button class="action-btn steal-btn cancel-steal" @click="pendingSteal = null" :disabled="loading">Cancel</button>
+        </div>
+        <div v-else-if="game.player_role === 'batting' && canSteal" class="button-group steal-group">
+          <button
+            v-if="game.bases[0] && !game.bases[1]"
+            class="action-btn steal-btn"
+            @click="doSteal(0)"
+            :disabled="loading"
+          >Steal 2nd</button>
+          <button
+            v-if="game.bases[1] && !game.bases[2]"
+            class="action-btn steal-btn"
+            @click="doSteal(1)"
+            :disabled="loading"
+          >Steal 3rd</button>
+          <button
+            v-if="game.bases[2]"
+            class="action-btn steal-btn"
+            @click="doSteal(2)"
+            :disabled="loading"
+          >Steal Home</button>
+        </div>
+
+        <button v-if="lastSnapshot && showDoOver" class="action-btn doover-btn" @click="doOver()" :disabled="loading">Do Over!</button>
+
+
+        <!-- Bullpen modal -->
+        <div v-if="showBullpen" class="bullpen-overlay" @click.self="showBullpen = false">
+          <div class="bullpen-modal">
+            <h3 class="bullpen-title">Bullpen</h3>
+            <div class="bullpen-list">
+              <div v-for="p in game[myPrefix + '_bullpen']" :key="p.id" class="bullpen-option">
+                <div class="bullpen-info">
+                  <span class="bullpen-name">{{ p.name }} <span class="pitcher-role-tag">{{ p.role || 'RP' }}</span></span>
+                  <span class="bullpen-stats" v-if="p.stats">ERA {{ p.stats.era.toFixed(2) }} | K/9 {{ p.stats.k_per_9.toFixed(1) }}</span>
+                </div>
+                <div v-if="warmingUp[p.id]" class="warmup-status">
+                  <div class="warmup-bar">
+                    <div class="warmup-fill" :style="{ width: Math.min(100, (warmingUp[p.id].pitches / WARMUP_PITCHES_NEEDED) * 100) + '%' }"></div>
+                  </div>
+                  <span class="warmup-tally">{{ warmingUp[p.id].pitches }}/{{ WARMUP_PITCHES_NEEDED }}</span>
+                  <button v-if="warmingUp[p.id].pitches >= WARMUP_PITCHES_NEEDED" class="bullpen-ready-btn" @click="doSwitchPitcher(p)">Put In</button>
+                </div>
+                <button v-else class="warmup-start-btn" @click="startWarmup(p); showBullpen = false">Warm Up</button>
+              </div>
+            </div>
+            <button class="bullpen-cancel" @click="showBullpen = false">Cancel</button>
           </div>
         </div>
-        <button v-if="lastSnapshot && showDoOver" class="action-btn doover-btn" @click="doOver()" :disabled="loading">Do Over!</button>
-        <div class="bottom-controls-row">
-          <button v-if="game.player_role === 'pitching' && game[myPrefix + '_bullpen'].length" class="action-btn bottom-ctrl-btn" @click="showBullpen = true" :disabled="loading">
-            Change Pitcher ({{ currentPitchCount }})
-          </button>
-          <button class="action-btn bottom-ctrl-btn" @click="simulateRest()" :disabled="loading">Simulate Rest of Game</button>
+        <div v-if="Object.keys(warmingUp).length" class="warmup-indicator" @click="showBullpen = true">
+          <span v-for="(w, id) in warmingUp" :key="id" class="warmup-chip">
+            {{ w.name }}: {{ w.pitches }}/{{ WARMUP_PITCHES_NEEDED }} {{ w.pitches >= WARMUP_PITCHES_NEEDED ? '\u2713' : '' }}
+          </span>
         </div>
       </div>
 
@@ -3164,6 +3166,15 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   margin: 8px 0;
 }
 
+.you-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4caf50;
+  display: block;
+  margin-bottom: 4px;
+}
+
 /* Player card container (used for both pitcher and batter) */
 .player-card {
   display: flex;
@@ -3478,16 +3489,76 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   flex-wrap: wrap;
 }
 
+/* Single-row action bar: pitch/bat buttons centered, sim button right */
+.action-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.action-bar .sim-btn {
+  position: absolute;
+  right: 0;
+}
+
+.change-pitcher-action-btn {
+  background: #3a3a4a;
+  color: #e94560;
+  border-color: #e94560;
+}
+
+.change-pitcher-action-btn:hover:not(:disabled) {
+  background: #e94560;
+  color: white;
+}
+
+.action-bar .change-pitcher-action-btn {
+  position: absolute;
+  left: 0;
+}
+
+/* Inverted (filled) button colors when pitching */
+.action-bar.pitching .pitch-btn {
+  background: #e94560;
+  color: white;
+  border-color: #e94560;
+}
+
+.action-bar.pitching .pitch-btn:hover:not(:disabled) {
+  background: #3a3a4a;
+  color: #e94560;
+}
+
+.pickoff-bar {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.pickoff-btn {
+  background: #3a3a4a;
+  color: #5b9bd5;
+  border-color: #5b9bd5;
+}
+
+.pickoff-btn:hover:not(:disabled) {
+  background: #5b9bd5;
+  color: white;
+}
+
 /* Base style for all action buttons (pitch types, swing, take, speed) */
 .action-btn {
-  padding: 12px 24px;
-  font-size: 16px;
+  padding: 8px 14px;
+  font-size: 13px;
   font-weight: bold;
   border: 2px solid;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  min-width: 100px;
+  white-space: nowrap;
 }
 
 /* Disabled action buttons: reduced opacity and blocked cursor */
@@ -3496,119 +3567,95 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   cursor: not-allowed;
 }
 
-/* Pitch type buttons — dark background with red border (ghost style) */
+/* All action bar buttons share ghost style: dark bg, colored border+text, invert on hover */
 .pitch-btn {
   background: #3a3a4a;
-  color: #e0e0e0;
+  color: #e94560;
   border-color: #e94560;
 }
 
-/* Pitch button hover: fills with red to confirm the selection */
 .pitch-btn:hover:not(:disabled) {
   background: #e94560;
   color: white;
 }
 
-/* Swing button — solid red, the primary batting action */
 .swing-btn {
+  background: #3a3a4a;
+  color: #e94560;
+  border-color: #e94560;
+}
+
+.swing-btn:hover:not(:disabled) {
   background: #e94560;
   color: white;
-  border-color: #e94560;
-  min-width: 140px;
 }
 
-/* Swing button hover: lighter red */
-.swing-btn:hover:not(:disabled) {
-  background: #ff6b81;
-}
-
-/* Bunt button — amber/orange to differentiate from Swing (red) and Take (green) */
 .bunt-btn {
   background: #3a3a4a;
-  color: #ff9800;
-  border-color: #ff9800;
-  min-width: 140px;
+  color: #e94560;
+  border-color: #e94560;
 }
 
 .bunt-btn:hover:not(:disabled) {
-  background: #ff9800;
+  background: #e94560;
   color: white;
 }
 
-/* Take button — green border/text to contrast with the red swing button.
-   Green = passive/safe (letting the pitch go by) vs red = aggressive (swinging). */
 .take-btn {
   background: #3a3a4a;
-  color: #4caf50;
-  border-color: #4caf50;
-  min-width: 140px;
+  color: #e94560;
+  border-color: #e94560;
 }
 
-/* Take button hover: fills with green */
 .take-btn:hover:not(:disabled) {
-  background: #4caf50;
+  background: #e94560;
   color: white;
 }
 
-.sim-rest-btn {
-  display: block;
-  margin: 12px auto 0;
-  background: transparent;
-  color: #888;
-  border: 1px solid #555;
-  padding: 6px 18px;
-  font-size: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.sim-rest-btn:hover:not(:disabled) {
+.sim-btn {
+  background: #3a3a4a;
+  color: #e94560;
   border-color: #e94560;
-  color: #e0e0e0;
 }
 
-.bottom-controls-row {
+.sim-btn:hover:not(:disabled) {
+  background: #e94560;
+  color: white;
+}
+
+.bullpen-controls-row {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .bottom-ctrl-btn {
-  flex: 1;
-  max-width: 220px;
-  background: transparent;
-  color: #888;
-  border: 1px solid #555;
+  background: #3a3a4a;
+  color: #e94560;
+  border: 2px solid #e94560;
   padding: 8px 16px;
   font-size: 13px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
 }
 
 .bottom-ctrl-btn:hover:not(:disabled) {
-  border-color: #ff9800;
-  color: #e0e0e0;
+  background: #e94560;
+  color: white;
 }
 
 .doover-btn {
   display: block;
   margin: 10px auto 0;
-  background: transparent;
-  color: #f0c040;
-  border: 1px solid #f0c040;
-  padding: 6px 18px;
-  font-size: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
+  background: #3a3a4a;
+  color: #e94560;
+  border-color: #e94560;
 }
 
 .doover-btn:hover:not(:disabled) {
-  background: #f0c040;
-  color: #0a0a1a;
+  background: #e94560;
+  color: white;
 }
 
 .steal-group {
@@ -3616,7 +3663,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 }
 
 .steal-btn {
-  background: transparent;
+  background: #3a3a4a;
   color: #e94560;
   border-color: #e94560;
   min-width: 110px;
@@ -3626,7 +3673,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 .steal-btn:hover:not(:disabled) {
   background: #e94560;
-  color: #0a0a1a;
+  color: white;
 }
 
 .steal-pending-label {
@@ -3652,17 +3699,17 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 }
 
 .pickoff-btn {
-  background: transparent;
-  color: #e69c24;
-  border-color: #e69c24;
+  background: #3a3a4a;
+  color: #e94560;
+  border-color: #e94560;
   min-width: 110px;
   font-size: 13px;
   padding: 6px 14px;
 }
 
 .pickoff-btn:hover:not(:disabled) {
-  background: #e69c24;
-  color: #0a0a1a;
+  background: #e94560;
+  color: white;
 }
 
 /* ========== Matchup Title ========== */
@@ -4432,15 +4479,8 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
   /* Smaller action buttons on mobile */
   .action-btn {
-    padding: 10px 16px;
-    font-size: 14px;
-    min-width: 80px;
-  }
-
-  .swing-btn,
-  .bunt-btn,
-  .take-btn {
-    min-width: 110px;
+    padding: 6px 10px;
+    font-size: 12px;
   }
 
   .play-btn {

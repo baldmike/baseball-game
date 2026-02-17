@@ -14,6 +14,7 @@ import {
   TAKE_OUTCOMES,
   CPU_PITCH_WEIGHTS,
   BUNT_OUTCOMES,
+  SQUEEZE_OUTCOMES,
 } from '../probabilities.js'
 
 import { applyWeatherModifiers, WEATHER_MODIFIERS } from '../weather.js'
@@ -1384,5 +1385,183 @@ describe('player side', () => {
     }
     expect(state.game_status).toBe('final')
     expect(state.last_play).toMatch(/You win!/)
+  })
+})
+
+// ──────────────────────────────────────────────
+// SQUEEZE PLAY TESTS
+// ──────────────────────────────────────────────
+describe('squeeze play', () => {
+  it('SQUEEZE_OUTCOMES weights sum to 100 and all are positive', () => {
+    const total = Object.values(SQUEEZE_OUTCOMES).reduce((a, b) => a + b, 0)
+    expect(total).toBe(100)
+    for (const w of Object.values(SQUEEZE_OUTCOMES)) {
+      expect(w).toBeGreaterThan(0)
+    }
+  })
+
+  it('squeeze_score_batter_out: runner scores, batter is out', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 0
+    const scoreBefore = state.home_total
+    state._forceNextOutcome = 'squeeze_score_batter_out'
+    processAtBat(state, 'squeeze')
+    expect(state.home_total).toBe(scoreBefore + 1)
+    expect(state.bases[2]).toBe(false)
+    expect(state.outs).toBe(1)
+    expect(state.home_box_score[0].rbi).toBe(1)
+    expect(state.home_box_score[0].ab).toBe(1)
+    expect(state.play_log.some(m => m.includes('squeeze'))).toBe(true)
+  })
+
+  it('squeeze_both_safe: runner scores, batter reaches 1st', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 0
+    const scoreBefore = state.home_total
+    state._forceNextOutcome = 'squeeze_both_safe'
+    processAtBat(state, 'squeeze')
+    expect(state.home_total).toBe(scoreBefore + 1)
+    expect(state.bases[0]).toBe(true) // batter on 1st
+    expect(state.bases[2]).toBe(false)
+    expect(state.outs).toBe(0)
+    expect(state.home_box_score[0].h).toBe(1)
+    expect(state.home_box_score[0].rbi).toBe(1)
+  })
+
+  it('squeeze_runner_out: runner out at home, batter reaches 1st', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 0
+    state._forceNextOutcome = 'squeeze_runner_out'
+    processAtBat(state, 'squeeze')
+    expect(state.home_total).toBe(0) // no run scored
+    expect(state.bases[0]).toBe(true) // batter on 1st
+    expect(state.bases[2]).toBe(false)
+    expect(state.outs).toBe(1)
+  })
+
+  it('squeeze_both_out: runner and batter both out (double play)', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 0
+    state._forceNextOutcome = 'squeeze_both_out'
+    processAtBat(state, 'squeeze')
+    expect(state.home_total).toBe(0)
+    expect(state.outs).toBe(2)
+    expect(state.bases[2]).toBe(false)
+  })
+
+  it('squeeze_foul: runner stays on 3rd, strike added', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.strikes = 0
+    state._forceNextOutcome = 'squeeze_foul'
+    processAtBat(state, 'squeeze')
+    expect(state.strikes).toBe(1)
+    expect(state.bases[2]).toBe(true) // runner still on 3rd
+    expect(state.outs).toBe(0)
+  })
+
+  it('squeeze_foul with 2 strikes causes strikeout', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.strikes = 2
+    state.outs = 0
+    state._forceNextOutcome = 'squeeze_foul'
+    processAtBat(state, 'squeeze')
+    expect(state.outs).toBe(1)
+    expect(state.home_box_score[0].so).toBe(1)
+    expect(state.play_log.some(m => m.includes('Squeeze foul with two strikes'))).toBe(true)
+  })
+
+  it('squeeze without runner on 3rd falls back to bunt', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    state._forceNextOutcome = 'sacrifice_out'
+    processAtBat(state, 'squeeze')
+    // Should have processed as a bunt sacrifice
+    expect(state.play_log.some(m => m.includes('bunt'))).toBe(true)
+    expect(state.outs).toBe(1)
+  })
+
+  it('other runners advance on squeeze_score_batter_out', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, true, true]
+    state.runner_indices = [0, 1, 2]
+    state.outs = 0
+    state._forceNextOutcome = 'squeeze_score_batter_out'
+    processAtBat(state, 'squeeze')
+    expect(state.home_total).toBe(1) // runner from 3rd scored
+    expect(state.bases[2]).toBe(true) // runner from 2nd advanced to 3rd
+    expect(state.bases[1]).toBe(true) // runner from 1st advanced to 2nd
+    expect(state.bases[0]).toBe(false) // 1st cleared
+    expect(state.outs).toBe(1)
+  })
+
+  it('other runners advance on squeeze_both_safe', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [true, true, true]
+    state.runner_indices = [0, 1, 2]
+    state.outs = 0
+    state._forceNextOutcome = 'squeeze_both_safe'
+    processAtBat(state, 'squeeze')
+    expect(state.home_total).toBe(1)
+    expect(state.bases[0]).toBe(true) // batter on 1st
+    expect(state.bases[1]).toBe(true) // runner from 1st advanced to 2nd
+    expect(state.bases[2]).toBe(true) // runner from 2nd advanced to 3rd
+  })
+
+  it('squeeze_both_out with 2 outs ends the half-inning after first out', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 2
+    state._forceNextOutcome = 'squeeze_both_out'
+    processAtBat(state, 'squeeze')
+    // 3rd out reached after first out of the double play → half-inning ends
+    expect(state.outs).toBe(0)
+    expect(state.bases).toEqual([false, false, false])
+  })
+
+  it('squeeze outcome filter applies', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 0
+    state._outcomeFilter = (_st, _outcome) => 'squeeze_both_safe'
+    processAtBat(state, 'squeeze')
+    expect(state.home_total).toBe(1)
+    expect(state.bases[0]).toBe(true)
   })
 })

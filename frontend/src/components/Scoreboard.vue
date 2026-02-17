@@ -319,6 +319,7 @@ const gridStyle = computed(() => ({
   object-fit: contain;
 }
 
+
 /* Team column in the header row should be gray, not red */
 .cell.team-col.header {
   color: #888;

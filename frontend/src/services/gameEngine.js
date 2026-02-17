@@ -23,7 +23,7 @@
  */
 
 import * as mlbApi from './mlbApi.js'
-import { cpuDecidesSwing, cpuPicksPitch, determineOutcome, BUNT_OUTCOMES, weightedChoice } from './probabilities.js'
+import { cpuDecidesSwing, cpuPicksPitch, determineOutcome, BUNT_OUTCOMES, SQUEEZE_OUTCOMES, weightedChoice } from './probabilities.js'
 import { WEATHER_CONDITIONS, TIME_OF_DAY, getErrorChance } from './weather.js'
 
 // ============================================================
@@ -900,6 +900,122 @@ export function processAtBat(state, action) {
 
   // CPU pitcher selects a pitch type (fastball, slider, curveball, changeup)
   const pitchType = cpuPicksPitch()
+
+  // Squeeze play: coupled bunt + runner logic (not routed through _applyOutcome)
+  if (action === 'squeeze') {
+    // Fall back to normal bunt if no runner on 3rd
+    if (!state.bases[2]) {
+      action = 'bunt'
+    } else {
+      if (state.is_top) state.home_pitch_count += 1
+      else state.away_pitch_count += 1
+
+      let outcome
+      if (state._forceNextOutcome) {
+        outcome = state._forceNextOutcome
+        state._forceNextOutcome = null
+      } else {
+        outcome = weightedChoice(SQUEEZE_OUTCOMES)
+      }
+      if (state._outcomeFilter) outcome = state._outcomeFilter(state, outcome)
+
+      const batterBox = _getBatterBox(state)
+      const pitcherBox = _getPitcherBox(state)
+      const msg = `Pitcher throws a ${pitchType}. You squeeze: ${_formatOutcome(outcome)}!`
+      state.play_log.push(msg)
+      state.last_play = msg
+
+      if (outcome === 'squeeze_score_batter_out') {
+        // Runner scores, batter out
+        _scoreRunner(state, state.runner_indices[2])
+        state.bases[2] = false
+        state.runner_indices[2] = null
+        // Advance other runners
+        if (state.bases[1]) { state.bases[2] = true; state.runner_indices[2] = state.runner_indices[1]; state.bases[1] = false; state.runner_indices[1] = null }
+        if (state.bases[0]) { state.bases[1] = true; state.runner_indices[1] = state.runner_indices[0]; state.bases[0] = false; state.runner_indices[0] = null }
+        _scoreRuns(state, 1)
+        if (batterBox) { batterBox.ab += 1; batterBox.rbi += 1 }
+        if (pitcherBox) { pitcherBox.ip_outs += 1; pitcherBox.r += 1; pitcherBox.er += 1 }
+        _pushScorecardPA(state, 'squeeze_score_batter_out', 1)
+        state.outs += 1
+        _resetCount(state)
+        _advanceBatter(state)
+        if (state.outs >= 3) _endHalfInning(state)
+        else _getCurrentBatter(state)
+      } else if (outcome === 'squeeze_both_safe') {
+        // Runner scores, batter reaches 1st
+        _scoreRunner(state, state.runner_indices[2])
+        state.bases[2] = false
+        state.runner_indices[2] = null
+        // Advance other runners
+        if (state.bases[1]) { state.bases[2] = true; state.runner_indices[2] = state.runner_indices[1]; state.bases[1] = false; state.runner_indices[1] = null }
+        if (state.bases[0]) { state.bases[1] = true; state.runner_indices[1] = state.runner_indices[0]; state.bases[0] = false; state.runner_indices[0] = null }
+        // Batter to 1st
+        state.bases[0] = true
+        const idx = state.is_top ? (state.away_batter_idx || 0) : (state.home_batter_idx || 0)
+        const lineup = state.is_top ? state.away_lineup : state.home_lineup
+        state.runner_indices[0] = lineup ? idx % lineup.length : 0
+        _scoreRuns(state, 1)
+        if (batterBox) { batterBox.ab += 1; batterBox.h += 1; batterBox.rbi += 1 }
+        if (pitcherBox) { pitcherBox.h += 1; pitcherBox.r += 1; pitcherBox.er += 1 }
+        if (state.is_top) state.away_hits += 1
+        else state.home_hits += 1
+        _pushScorecardPA(state, 'squeeze_both_safe', 1)
+        _resetCount(state)
+        _advanceBatter(state)
+        _getCurrentBatter(state)
+      } else if (outcome === 'squeeze_runner_out') {
+        // Runner out at home, batter reaches 1st, other runners hold
+        state.bases[2] = false
+        state.runner_indices[2] = null
+        state.outs += 1
+        // Batter to 1st
+        state.bases[0] = true
+        const idx = state.is_top ? (state.away_batter_idx || 0) : (state.home_batter_idx || 0)
+        const lineup = state.is_top ? state.away_lineup : state.home_lineup
+        state.runner_indices[0] = lineup ? idx % lineup.length : 0
+        if (batterBox) batterBox.ab += 1
+        if (pitcherBox) pitcherBox.ip_outs += 1
+        _pushScorecardPA(state, 'squeeze_runner_out', 0)
+        _resetCount(state)
+        _advanceBatter(state)
+        if (state.outs >= 3) _endHalfInning(state)
+        else _getCurrentBatter(state)
+      } else if (outcome === 'squeeze_both_out') {
+        // Runner out, batter out — double play
+        state.bases[2] = false
+        state.runner_indices[2] = null
+        state.outs += 1
+        if (batterBox) batterBox.ab += 1
+        if (pitcherBox) pitcherBox.ip_outs += 1
+        if (state.outs >= 3) {
+          _pushScorecardPA(state, 'squeeze_both_out', 0)
+          _resetCount(state)
+          _advanceBatter(state)
+          _endHalfInning(state)
+        } else {
+          state.outs += 1
+          if (pitcherBox) pitcherBox.ip_outs += 1
+          _pushScorecardPA(state, 'squeeze_both_out', 0)
+          _resetCount(state)
+          _advanceBatter(state)
+          if (state.outs >= 3) _endHalfInning(state)
+          else _getCurrentBatter(state)
+        }
+      } else if (outcome === 'squeeze_foul') {
+        // Foul ball — runner retreats to 3rd, add strike (2-strike foul = K)
+        if (state.strikes >= 2) {
+          state.strikes = 3
+          if (batterBox) { batterBox.ab += 1; batterBox.so += 1 }
+          if (pitcherBox) { pitcherBox.so += 1; pitcherBox.ip_outs += 1 }
+          _recordOut(state, 'Squeeze foul with two strikes — strikeout!', 'strikeout')
+        } else {
+          state.strikes += 1
+        }
+      }
+      return state
+    }
+  }
 
   // Determine outcome: forced (testing), bunt table, or normal swing/take
   let outcome

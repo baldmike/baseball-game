@@ -166,6 +166,16 @@ export const BUNT_OUTCOMES = {
   popout: 5,           // popped up, easy out, runners hold
 }
 
+// Outcomes for the squeeze play — runner on 3rd breaks for home, batter bunts.
+// Net: 65% runner scores (40+25), 25% batter safe (25+15), ~MLB 67% success rate.
+export const SQUEEZE_OUTCOMES = {
+  squeeze_score_batter_out: 40,  // runner scores, batter out (classic sacrifice squeeze)
+  squeeze_both_safe: 25,         // runner scores, batter reaches 1st (bunt single)
+  squeeze_runner_out: 15,        // batter reaches 1st, runner caught at home
+  squeeze_both_out: 10,          // popup or missed bunt — runner caught, batter out (double play)
+  squeeze_foul: 10,              // foul ball — runner retreats to 3rd, strike added (2-strike foul = K)
+}
+
 /** CPU batter decides whether to swing (60% chance). */
 export function cpuDecidesSwing() {
   return Math.random() < CPU_SWING_PROBABILITY

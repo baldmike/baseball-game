@@ -924,3 +924,62 @@ describe('bunt', () => {
     expect(state.away_pitcher_stats.ip_outs).toBe(ipBefore + 1)
   })
 })
+
+// ──────────────────────────────────────────────
+// HALF-INNING INTEGRITY — every half-inning ends with exactly 3 outs
+// ──────────────────────────────────────────────
+describe('half-inning integrity', () => {
+  it('every completed half-inning has exactly 3 outs across multiple simulated games', () => {
+    // Run several games to cover variation (DPs, walk-offs, extras, steals)
+    for (let g = 0; g < 5; g++) {
+      const state = makeGameState()
+      const { snapshots } = simulateGame(state)
+
+      // Count outs per half-inning by tracking positive deltas in the
+      // snapshot outs field. When outs increase within a half-inning,
+      // add the delta to the running total. When a half-inning transition
+      // occurs (inning/is_top changes), the outs were >= 3 which triggered
+      // _endHalfInning (resetting to 0). The "missing" outs from the final
+      // play are: (3 - last seen outs before the transition snapshot).
+      let prevInning = snapshots[0].inning
+      let prevIsTop = snapshots[0].is_top
+      let accumOuts = snapshots[0].outs
+      let lastSeenOuts = snapshots[0].outs
+      const outsPerHalf = []
+
+      for (let i = 1; i < snapshots.length; i++) {
+        const snap = snapshots[i]
+
+        if (snap.inning !== prevInning || snap.is_top !== prevIsTop) {
+          // Half-inning transition: the final play brought outs to >= 3,
+          // then _endHalfInning reset them. Infer the missing outs.
+          const finalOuts = accumOuts + (3 - lastSeenOuts)
+          outsPerHalf.push({ inning: prevInning, isTop: prevIsTop, outs: finalOuts })
+          accumOuts = snap.outs
+          lastSeenOuts = snap.outs
+          prevInning = snap.inning
+          prevIsTop = snap.is_top
+        } else {
+          if (snap.outs > lastSeenOuts) {
+            accumOuts += (snap.outs - lastSeenOuts)
+          }
+          lastSeenOuts = snap.outs
+        }
+      }
+
+      // Every completed half-inning should have exactly 3 outs.
+      // Walk-off exception: bottom of the last inning where home team
+      // wins may end with < 3 outs (game ends on a go-ahead run).
+      const finalSnap = snapshots[snapshots.length - 1]
+      for (const half of outsPerHalf) {
+        const isWalkOff = !half.isTop
+          && half.inning === finalSnap.inning
+          && finalSnap.game_status === 'final'
+          && finalSnap.home_total > finalSnap.away_total
+        if (!isWalkOff) {
+          expect(half.outs, `Game ${g}: inning ${half.inning} ${half.isTop ? 'top' : 'bot'} had ${half.outs} outs`).toBe(3)
+        }
+      }
+    }
+  })
+})

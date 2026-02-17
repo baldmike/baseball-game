@@ -1,6 +1,6 @@
 /**
  * mlbApi.js — MLB Stats API integration via CORS proxy.
- * Ported from mlb_service.py. Uses native fetch instead of axios.
+ * Uses native fetch to pull real rosters and stats from statsapi.mlb.com.
  */
 
 const MLB_BASE = 'https://statsapi.mlb.com'
@@ -266,7 +266,7 @@ async function getTeamRoster(teamId, season = 2024) {
 
 /**
  * Fetch a team's roster and return 9 position players with hitting stats.
- * Same OPS-based lineup construction as the Python backend.
+ * OPS-based lineup construction: one player per position, then best remaining by OPS.
  */
 export async function getTeamLineup(teamId, season = 2024) {
   const defaults = { avg: 0.245, slg: 0.395, k_rate: 0.230, hr_rate: 0.030 }

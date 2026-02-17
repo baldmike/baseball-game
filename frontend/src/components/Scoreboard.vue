@@ -204,7 +204,7 @@ function logoUrl(teamId) {
 
 /**
  * Total number of innings to display in the scoreboard.
- * Derived from the length of the away score array, which the backend
+ * Derived from the length of the away score array, which the game engine
  * extends automatically for extra innings beyond the standard 9.
  * This means the grid automatically grows columns for extras — no hardcoded 9.
  */

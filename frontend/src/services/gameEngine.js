@@ -1,6 +1,6 @@
 /**
  * gameEngine.js — Core game logic and state management.
- * Ported from game_engine.py. Operates on plain state objects.
+ * Operates on plain state objects entirely in the browser.
  *
  * This is the heart of the baseball simulation. Every pitch, hit, out, steal,
  * and double play flows through this module. It tracks all game state including

@@ -624,7 +624,7 @@
         Shown only during an automated simulation replay (simulating = true).
 
         SIMULATION REPLAY MECHANISM:
-        When the user clicks "Simulate", the backend runs the entire game at once
+        When the user clicks "Simulate", the game engine runs the entire game at once
         and returns an array of snapshot objects (simSnapshots). Each snapshot
         represents the game state after one play. The frontend replays these
         snapshots on a setInterval timer, advancing simReplayIndex each tick
@@ -653,7 +653,7 @@
       <!--
         ==================== INTERACTIVE GAME CONTROLS ====================
         Shown only when the game is active (not final) and not simulating.
-        The backend's `player_role` field determines whether the user is
+        The engine's `player_role` field determines whether the user is
         currently pitching or batting.
 
         - Pitching: user is the home team's pitcher (top of inning, away team bats)
@@ -663,7 +663,7 @@
         <!--
           Pitching Mode — shown when game.player_role === 'pitching'.
           The user chooses a pitch type (fastball, curveball, slider, changeup),
-          which is sent to the backend to resolve the at-bat.
+          which is sent to the game engine to resolve the at-bat.
         -->
         <div v-if="game.player_role === 'pitching'" class="pitch-controls">
           <div class="mode-label">You're Pitching — Choose your pitch:</div>
@@ -722,7 +722,7 @@
         <!--
           Batting Mode — shown when game.player_role === 'batting'.
           The user chooses to swing at the pitch or take (let it go by).
-          The backend determines if the pitch was a ball or strike and
+          The engine determines if the pitch was a ball or strike and
           resolves contact/miss outcomes for swings.
         -->
         <div v-if="game.player_role === 'batting'" class="bat-controls">
@@ -773,7 +773,7 @@
       </div>
 
       <!--
-        Last Play Banner — shows the most recent play description from the backend.
+        Last Play Banner — shows the most recent play description from the game engine.
         Styled prominently in yellow on a dark background so the user can see
         what just happened at a glance. Prev/next arrows let the user browse
         through the full play_log history.
@@ -1010,7 +1010,7 @@ import Scorecard from './Scorecard.vue'
 // ============================================================
 
 /**
- * The main game state object from the backend.
+ * The main game state object from the game engine.
  * null when no game is active (setup wizard is shown instead).
  * Contains everything: scores, bases, count, lineups, play log, etc.
  */
@@ -1143,7 +1143,7 @@ const pitcherList = ref([])
 
 /**
  * The MLB player ID of the selected home starting pitcher.
- * null means the backend will auto-assign a pitcher.
+ * null means the game engine will auto-assign a pitcher.
  */
 const selectedPitcherId = ref(null)
 
@@ -1365,7 +1365,7 @@ const simulating = ref(false)
 const simPaused = ref(false)
 
 /**
- * Array of game state snapshot objects from the backend's simulation.
+ * Array of game state snapshot objects from the game engine's simulation.
  * Each snapshot represents the game state after one play (pitch result,
  * at-bat outcome, etc.). The replay timer steps through these one by one
  * to animate the game.
@@ -1532,7 +1532,7 @@ const premiumFantasyMatchups = [
 
 /**
  * Available pitch types for the pitching controls.
- * Each has a display label and a value string sent to the backend API.
+ * Each has a display label and a value string sent to the game engine API.
  * The four types represent the core pitch repertoire in baseball.
  */
 const pitchTypes = [
@@ -1901,10 +1901,10 @@ function goBack() {
 /**
  * Create a new interactive game via the API and start playing.
  * Sends all the configuration from the setup wizard (teams, seasons, pitchers)
- * to the backend, which returns the initial game state.
+ * to the game engine, which returns the initial game state.
  *
  * If called without any team selection (the "Skip" path), createNewGame
- * receives undefined values and the backend assigns random teams.
+ * receives undefined values and the game engine assigns random teams.
  */
 /** Dock Ellis screen melt transition state */
 const ellisMelting = ref(false)
@@ -1967,11 +1967,11 @@ async function startGame() {
 }
 
 /**
- * Create a game and immediately simulate the entire thing on the backend.
+ * Create a game and immediately simulate the entire thing on the game engine.
  *
  * SIMULATION REPLAY MECHANISM:
  * 1. Create the game (same as startGame)
- * 2. Call simulateGame() which runs every at-bat on the backend
+ * 2. Call simulateGame() which runs every at-bat on the game engine
  * 3. Backend returns an array of "snapshots" — one game state per play
  * 4. Store snapshots in simSnapshots ref
  * 5. Show the first snapshot as the current game state
@@ -2260,7 +2260,7 @@ function doOver() {
 }
 
 /**
- * Send a pitch to the backend (used when the player is pitching).
+ * Send a pitch to the game engine (used when the player is pitching).
  * Updates the game state with the pitch outcome (ball, strike, hit, etc.).
  *
  * @param {string} pitchType - One of 'fastball', 'curveball', 'slider', 'changeup'
@@ -2275,7 +2275,7 @@ function doPitch(pitchType) {
 }
 
 /**
- * Send a batting action to the backend (used when the player is batting).
+ * Send a batting action to the game engine (used when the player is batting).
  * Updates the game state with the at-bat outcome.
  *
  * @param {string} action - Either 'swing' (attempt to hit) or 'take' (let pitch pass)

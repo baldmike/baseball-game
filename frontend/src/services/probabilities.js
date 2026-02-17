@@ -1,8 +1,8 @@
 /**
  * probabilities.js — MLB-realistic probability tables for the baseball game.
  *
- * Ported from probabilities.py. Uses weighted random selection to produce
- * outcomes that feel realistic relative to actual MLB statistics.
+ * Uses weighted random selection to produce outcomes that feel realistic
+ * relative to actual MLB statistics.
  */
 
 import { calculateAdjustedOutcomes, calculateAdjustedTakeOutcomes } from './statsCalculator.js'

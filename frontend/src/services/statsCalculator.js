@@ -1,6 +1,5 @@
 /**
  * statsCalculator.js — Adjust outcome probabilities based on real MLB player stats.
- * Ported from stats_calculator.py.
  */
 
 // League average baselines

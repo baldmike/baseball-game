@@ -633,7 +633,10 @@
         <span v-if="classicLabel" class="classic-label">{{ classicLabel }}</span>
         {{ resolvedAwaySeason }} {{ game.away_team || 'Away' }} @ {{ resolvedHomeSeason }} {{ game.home_team || 'Home' }}
       </div>
-      <div class="venue-label" v-if="selectedVenue">{{ selectedVenue }}</div>
+      <div class="venue-label" v-if="selectedVenue">
+        {{ selectedVenue }}
+        <span v-if="game.weather && WEATHER_CONDITIONS[game.weather]" class="venue-weather"> · {{ WEATHER_CONDITIONS[game.weather].icon }} {{ WEATHER_CONDITIONS[game.weather].temp }}</span>
+      </div>
 
       <Scoreboard
         :away-score="game.away_score"
@@ -658,12 +661,6 @@
         :play-log-index="playLogIndex"
         @update:play-log-index="playLogIndex = $event"
       />
-
-      <!-- Weather banner — shows the current weather condition during the game -->
-      <div v-if="game.weather && WEATHER_CONDITIONS[game.weather]" class="weather-banner">
-        <span class="weather-banner-icon">{{ WEATHER_CONDITIONS[game.weather].icon }}</span>
-        <span class="weather-banner-text">{{ WEATHER_CONDITIONS[game.weather].label }} · {{ WEATHER_CONDITIONS[game.weather].temp }}</span>
-      </div>
 
       <!--
         Field Layout — a horizontal flex row with:
@@ -5189,26 +5186,9 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   margin-bottom: 4px;
 }
 
-/* ========== Weather Banner (Active Game) ========== */
-.weather-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 2px 12px;
-  background: #1a1a2e;
-  border-radius: 6px;
-  margin-bottom: 4px;
-  font-size: 13px;
-  color: #ccc;
-}
-
-.weather-banner-icon {
-  font-size: 16px;
-}
-
-.weather-banner-text {
-  font-size: 13px;
+/* ========== Inline Weather (next to venue name) ========== */
+.venue-weather {
+  color: #bbb;
 }
 
 /* ========== Inning Transition Banner ========== */

@@ -2375,3 +2375,79 @@ describe("Babe Ruth's Called Shot detection", () => {
     expect(/\bRuth\b/i.test('Ruthless')).toBe(false)
   })
 })
+
+// ──────────────────────────────────────────────
+// DOUBLE PLAY REQUIRES RUNNER ON FIRST
+// ──────────────────────────────────────────────
+describe('double play', () => {
+  it('groundout with runner on 1st and < 2 outs can produce a double play', () => {
+    const state = makeGameState()
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    state.outs = 0
+    state._outcomeFilter = () => 'groundout'
+    const returns = [0.99, 0.99, 0.99, 0.001]
+    let i = 0
+    vi.spyOn(Math, 'random').mockImplementation(() => returns[i++] ?? 0.001)
+    processPitch(state, 'fastball')
+    Math.random.mockRestore()
+    expect(state.outs).toBeGreaterThanOrEqual(2)
+    expect(state.last_play).toMatch(/Double play/)
+  })
+
+  it('groundout with runner on 2nd and < 2 outs can produce a double play', () => {
+    const state = makeGameState()
+    state.bases = [false, true, false]
+    state.runner_indices = [null, 1, null]
+    state.outs = 0
+    state._outcomeFilter = () => 'groundout'
+    const returns = [0.99, 0.99, 0.99, 0.001]
+    let i = 0
+    vi.spyOn(Math, 'random').mockImplementation(() => returns[i++] ?? 0.001)
+    processPitch(state, 'fastball')
+    Math.random.mockRestore()
+    expect(state.outs).toBeGreaterThanOrEqual(2)
+    expect(state.last_play).toMatch(/Double play/)
+  })
+
+  it('groundout with runner on 3rd and < 2 outs can produce a double play', () => {
+    const state = makeGameState()
+    state.bases = [false, false, true]
+    state.runner_indices = [null, null, 2]
+    state.outs = 0
+    state._outcomeFilter = () => 'groundout'
+    const returns = [0.99, 0.99, 0.99, 0.001]
+    let i = 0
+    vi.spyOn(Math, 'random').mockImplementation(() => returns[i++] ?? 0.001)
+    processPitch(state, 'fastball')
+    Math.random.mockRestore()
+    expect(state.outs).toBeGreaterThanOrEqual(2)
+    expect(state.last_play).toMatch(/Double play/)
+  })
+
+  it('groundout with empty bases never produces a double play', () => {
+    const state = makeGameState()
+    state.bases = [false, false, false]
+    state.runner_indices = [null, null, null]
+    state.outs = 0
+    state._outcomeFilter = () => 'groundout'
+    // Even with low random (would trigger DP if runner existed)
+    vi.spyOn(Math, 'random').mockReturnValue(0.001)
+    processPitch(state, 'fastball')
+    Math.random.mockRestore()
+    // Should be a normal out or error, never a double play
+    expect(state.last_play).not.toMatch(/Double play/)
+  })
+
+  it('groundout with 2 outs never produces a double play', () => {
+    const state = makeGameState()
+    state.bases = [true, false, false]
+    state.runner_indices = [0, null, null]
+    state.outs = 2
+    state._outcomeFilter = () => 'groundout'
+    vi.spyOn(Math, 'random').mockReturnValue(0.001)
+    processPitch(state, 'fastball')
+    Math.random.mockRestore()
+    expect(state.last_play).not.toMatch(/Double play/)
+  })
+})

@@ -263,6 +263,7 @@ const gridStyle = computed(() => ({
   border-radius: 8px;
   padding: 8px;
   margin-bottom: 8px;
+  min-height: 180px;
 }
 
 /* ========== Score Grid ========== */
@@ -506,7 +507,7 @@ const gridStyle = computed(() => ({
   padding: 10px 16px;
   border-top: 1px solid #333;
   text-align: center;
-  font-size: 15px;
+  font-size: 13px;
   color: #ffffff;
   font-weight: 500;
   display: flex;

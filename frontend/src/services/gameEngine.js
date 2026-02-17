@@ -601,8 +601,8 @@ function _applyOutcome(state, outcome, msg) {
         state.play_log.push(`${runs} run(s) score!`)
         state.last_play += ` ${runs} run(s) score!`
       }
-    } else if (outcome === 'groundout' && state.bases[0] && state.outs < 2 && Math.random() < DOUBLE_PLAY_RATE) {
-      // Double play: runner on 1st, less than 2 outs
+    } else if (outcome === 'groundout' && (state.bases[0] || state.bases[1] || state.bases[2]) && state.outs < 2 && Math.random() < DOUBLE_PLAY_RATE) {
+      // Double play: runner on any base, less than 2 outs
       _applyDoublePlay(state)
     } else {
       if (batterBox) batterBox.ab += 1

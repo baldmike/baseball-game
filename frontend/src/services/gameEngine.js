@@ -135,6 +135,10 @@ function _emptyState() {
 
     // --- Classic game mode ---
     classic_relievers: null,   // {home: 'Rivera', away: 'Nen'} — named relievers for classic matchups
+
+    // --- Bullpen warmup (simulation mode) ---
+    home_warmup: null,         // { pitcher, pitches: 0 } or null — reliever warming up
+    away_warmup: null,
   }
 }
 
@@ -668,6 +672,8 @@ function _snapshot(state) {
     home_scorecard: state.home_scorecard.map((r) => ({ ...r })),
     away_scorecard: state.away_scorecard.map((r) => ({ ...r })),
     classic_relievers: state.classic_relievers,
+    home_warmup: state.home_warmup ? { pitcher: state.home_warmup.pitcher, pitches: state.home_warmup.pitches } : null,
+    away_warmup: state.away_warmup ? { pitcher: state.away_warmup.pitcher, pitches: state.away_warmup.pitches } : null,
   }
 }
 
@@ -687,6 +693,7 @@ export function switchPitcher(state, side, newPitcher) {
   }
   state[side + '_pitcher'] = newPitcher
   state[side + '_pitch_count'] = 0
+  state[side + '_warmup'] = null
   state[side + '_pitcher_stats'] = {
     id: newPitcher.id,
     name: newPitcher.name,
@@ -1231,41 +1238,102 @@ function _findRelieverIdx(bullpen, name) {
   return bullpen.findIndex((p) => p.name.toLowerCase().includes(lower) || lower.includes(p.name.toLowerCase()))
 }
 
+/** Pitch count at which warmup begins. */
+const WARMUP_TRIGGER = 75
+
+/** Pitches needed to fully warm up a reliever (matches interactive mode). */
+const SIM_WARMUP_PITCHES = 13
+
 /**
  * Check if a pitching change should happen for the given side, and make it.
- * For classic games with designated relievers, bring in the named reliever
- * around inning 7. Otherwise fall back to the standard fatigue rule (100 pitches).
+ *
+ * Warmup flow (simulation mode):
+ *   1. At 60+ pitches (50% health), start warming up the next reliever
+ *   2. Each call increments the warmup pitch counter
+ *   3. When warmup is complete (13 pitches), bring the reliever in
+ *   4. Safety net: force swap at 100 pitches even if warmup isn't done
+ *
+ * Classic mode: named relievers still enter at inning 7, but with warmup announcements.
  */
 function _maybeSwapPitcher(state, side) {
   const bullpen = state[side + '_bullpen']
   if (!bullpen.length) return
 
+  // Never pull a pitcher throwing a no-hitter
+  const opponentHits = side === 'home' ? state.away_hits : state.home_hits
+  if (opponentHits === 0) return
+
   const pitchCount = state[side + '_pitch_count']
+  const warmupKey = side + '_warmup'
+  const warmup = state[warmupKey]
   const relievers = state.classic_relievers
   const relieverName = relievers?.[side]
+  const abbrev = state[side + '_abbreviation'] || side.toUpperCase()
 
+  // --- Classic mode: named reliever at inning 7 ---
   if (relieverName) {
-    // Classic mode: bring in the named reliever at inning 7+ (start of a half-inning, 0 outs)
     if (state.inning >= 7 && state.outs === 0) {
       const currentPitcher = state[side + '_pitcher']
-      // Only switch if we haven't already switched to this reliever
       if (currentPitcher && !currentPitcher.name.toLowerCase().includes(relieverName.toLowerCase())) {
         const idx = _findRelieverIdx(bullpen, relieverName)
         if (idx >= 0) {
-          switchPitcher(state, side, bullpen.splice(idx, 1)[0])
-          return
+          // Start warmup if not already warming this pitcher
+          if (!warmup || warmup.pitcher.id !== bullpen[idx].id) {
+            const reliever = bullpen[idx]
+            state[warmupKey] = { pitcher: reliever, pitches: 0 }
+            const msg = `${abbrev} warming up ${reliever.name} in the bullpen`
+            state.play_log.push(msg)
+            state.last_play = msg
+          }
         }
       }
     }
-    // Also apply standard fatigue rule as fallback
-    if (pitchCount >= 100) {
-      switchPitcher(state, side, bullpen.shift())
+  }
+
+  // --- Warmup trigger at 50% health (60 pitches) ---
+  if (!warmup && pitchCount >= WARMUP_TRIGGER) {
+    let reliever
+    let relieverIdx
+    if (relieverName) {
+      relieverIdx = _findRelieverIdx(bullpen, relieverName)
+      reliever = relieverIdx >= 0 ? bullpen[relieverIdx] : bullpen[0]
+    } else {
+      reliever = bullpen[0]
     }
-  } else {
-    // Standard fatigue-based replacement
-    if (pitchCount >= 100) {
-      switchPitcher(state, side, bullpen.shift())
+    state[warmupKey] = { pitcher: reliever, pitches: 0 }
+    const msg = `${abbrev} warming up ${reliever.name} in the bullpen`
+    state.play_log.push(msg)
+    state.last_play = msg
+  }
+
+  // --- Increment warmup pitches ---
+  if (state[warmupKey]) {
+    state[warmupKey].pitches += 1
+
+    // --- Warmup complete: bring the reliever in ---
+    if (state[warmupKey].pitches >= SIM_WARMUP_PITCHES) {
+      const readyPitcher = state[warmupKey].pitcher
+      const idx = bullpen.indexOf(readyPitcher)
+      if (idx >= 0) {
+        bullpen.splice(idx, 1)
+      } else {
+        bullpen.shift()
+      }
+      switchPitcher(state, side, readyPitcher)
+      return
     }
+  }
+
+  // --- Safety net: force swap at 100 pitches ---
+  if (pitchCount >= 100) {
+    const readyPitcher = warmup ? warmup.pitcher : bullpen[0]
+    const idx = bullpen.indexOf(readyPitcher)
+    if (idx >= 0) {
+      bullpen.splice(idx, 1)
+    } else {
+      bullpen.shift()
+    }
+    switchPitcher(state, side, readyPitcher)
   }
 }
 

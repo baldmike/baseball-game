@@ -4829,9 +4829,17 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
     flex-direction: column;
   }
 
-  /* Move controls just below scoreboard */
+  /* Reorder: scoreboard (default) → controls → field → weather */
   .controls {
-    order: -1;
+    order: 2;
+  }
+
+  .field-layout {
+    order: 3;
+  }
+
+  .weather-banner {
+    order: 4;
   }
 
   /* Stack field layout vertically: pitcher on top, diamond, batter below */

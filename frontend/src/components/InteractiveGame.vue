@@ -4827,11 +4827,13 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   /* Stack field layout vertically: pitcher on top, diamond, batter below */
   .field-layout {
     flex-direction: column;
+    align-items: center;
     gap: 4px;
   }
 
   .player-card {
     flex-direction: row;
+    justify-content: center;
     width: auto;
     min-height: auto;
     gap: 8px;
@@ -4847,7 +4849,18 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
     align-items: flex-start;
   }
 
-  /* Smaller action buttons on mobile */
+  /* Action buttons: wrap to two lines on mobile */
+  .action-bar {
+    flex-wrap: wrap;
+    justify-content: center;
+    position: static;
+  }
+
+  .action-bar .change-pitcher-action-btn,
+  .action-bar .sim-btn {
+    position: static;
+  }
+
   .action-btn {
     padding: 6px 10px;
     font-size: 12px;

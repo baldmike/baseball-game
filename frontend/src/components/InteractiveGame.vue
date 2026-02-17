@@ -14,7 +14,7 @@
     ╠══════════════════════════════════════════════════════════════════╣
     ║  FEATURE                    │  FREE           │  PREMIUM        ║
     ║  ─────────────────────────  │  ──────────     │  ──────────     ║
-    ║  Season range               │  2000-2025      │  1920-2025      ║
+    ║  Season range               │  2000-2025      │  1900-2025      ║
     ║  Historic matchups          │  6 games        │  15 games       ║
     ║  Fantasy matchups           │  6 games        │  15 games       ║
     ║  Opponent season selection  │  Locked to home │  Any season     ║
@@ -61,21 +61,34 @@
         </div>
       </div>
 
-      <!-- SEASON MODE: pick season + team -->
+      <!-- SEASON MODE: pick era + season + team -->
       <div v-if="gameMode === 'season'">
         <div class="season-hero">
           <h2 class="season-hero-title">Pick a Season</h2>
-          <p class="season-hero-sub">Choose an era, then select your team</p>
-          <select id="home-season" v-model="selectedSeason" class="season-hero-dropdown">
-            <option v-for="year in availableSeasons" :key="year" :value="year">{{ year }}</option>
-          </select>
+          <div class="era-grid">
+            <div v-for="era in availableEras" :key="era.label" class="era-card"
+                 :class="{ selected: selectedEra.label === era.label }">
+              <span class="era-label">{{ era.label }}</span>
+              <select
+                class="era-select"
+                :value="selectedEra.label === era.label ? selectedSeason : ''"
+                @change="selectEra(era); selectedSeason = Number($event.target.value)"
+              >
+                <option value="" disabled>{{ era.start }}–{{ era.end }}</option>
+                <option v-for="y in (era.end - era.start + 1)" :key="era.end - y + 1" :value="era.end - y + 1">
+                  {{ era.end - y + 1 }}
+                </option>
+              </select>
+            </div>
+          </div>
           <span v-if="loadingHomeTeams" class="season-hero-loading">Loading teams...</span>
         </div>
+        <p class="selected-year-label">{{ selectedSeason }}</p>
         <TeamSelector :teams="homeTeams" @teamSelected="onTeamSelected" />
-        <!-- PREMIUM GATE: Season range upgrade CTA (free users see 2000-2025, premium see 1920-2025) -->
+        <!-- PREMIUM GATE: Era upgrade CTA -->
         <div v-if="!premiumUnlocked" class="unlock-section">
           <a href="https://baldmike.gumroad.com/l/basebald" target="_blank" rel="noopener" class="unlock-btn">
-            Upgrade to Premium to go back to 1920! — Just $3!
+            Upgrade to Premium to unlock all eras back to 1900! — Just $3!
           </a>
           <div class="unlock-code-row">
             <input
@@ -222,20 +235,34 @@
     -->
     <div v-if="!game && setupStep === 3" class="start-screen">
       <div class="step-header">
-        <h3 class="step-label">Now pick the opponent</h3>
+        <h2 class="season-hero-title">Pick your opponent</h2>
       </div>
-      <!-- PREMIUM GATE: Opponent season dropdown — premium users can pick any season,
+      <!-- PREMIUM GATE: Opponent season — premium users get era selector,
            free users are locked to the same season as their home team -->
-      <div class="season-select pregame-season" style="margin-bottom: 16px; text-align: center;">
-        <label for="away-season" style="color: #aaa; font-size: 14px; margin-right: 8px;">Season:</label>
-        <!-- PREMIUM: full season dropdown for opponent -->
-        <select v-if="premiumUnlocked" id="away-season" v-model="selectedAwaySeason" class="season-dropdown">
-          <option v-for="year in availableSeasons" :key="year" :value="year">{{ year }}</option>
-        </select>
-        <!-- FREE: locked to home team's season (display only) -->
-        <span v-else style="color: #ccc; font-size: 15px;">{{ selectedSeason }}</span>
+      <div v-if="premiumUnlocked" class="season-hero" style="padding: 12px 20px 16px;">
+        <div class="era-grid">
+          <div v-for="era in availableEras" :key="era.label" class="era-card"
+               :class="{ selected: selectedAwayEra.label === era.label }">
+            <span class="era-label">{{ era.label }}</span>
+            <select
+              class="era-select"
+              :value="selectedAwayEra.label === era.label ? selectedAwaySeason : ''"
+              @change="selectAwayEra(era); selectedAwaySeason = Number($event.target.value)"
+            >
+              <option value="" disabled>{{ era.start }}–{{ era.end }}</option>
+              <option v-for="y in (era.end - era.start + 1)" :key="era.end - y + 1" :value="era.end - y + 1">
+                {{ era.end - y + 1 }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <span v-if="loadingAwayTeams" class="season-hero-loading">Loading teams...</span>
+      </div>
+      <div v-else style="margin-bottom: 16px; text-align: center;">
+        <span style="color: #ccc; font-size: 15px;">{{ selectedSeason }}</span>
         <span v-if="loadingAwayTeams" style="color: #888; margin-left: 12px; font-size: 13px;">Loading teams...</span>
       </div>
+      <p class="selected-year-label">{{ selectedAwaySeason }}</p>
       <div class="opponent-leagues">
         <div v-for="league in opponentLeagues" :key="league.name" class="opponent-league-section">
           <h4 class="league-header">{{ league.label }}</h4>
@@ -349,19 +376,61 @@
       For custom/fantasy games, defaults to "Clear Skies".
     -->
     <div v-if="!game && setupStep === 5" class="start-screen">
-      <div class="venue-selection">
+      <!-- Historic mode: pick your team (stadium is fixed) -->
+      <div v-if="classicMode && classicMatchupData?.stadium" class="venue-selection">
         <p>Play as:</p>
+        <div class="venue-grid">
+          <button class="venue-card" :class="{ selected: playerSide === 'home' }"
+                  @click="playerSide = 'home'">
+            <span class="venue-team">{{ homeTeamName }} ({{ selectedSeason }})</span>
+          </button>
+          <button class="venue-card" :class="{ selected: playerSide === 'away' }"
+                  @click="playerSide = 'away'">
+            <span class="venue-team">{{ awayTeamName }} ({{ selectedAwaySeason }})</span>
+          </button>
+        </div>
+        <p class="venue-name">{{ classicMatchupData.stadium }}</p>
+      </div>
+
+      <!-- Fantasy mode: pick your team, then home/away -->
+      <div v-else-if="classicMode" class="venue-selection">
+        <p>Play as:</p>
+        <div class="venue-grid">
+          <button class="venue-card" :class="{ selected: fantasyTeamId === classicMatchupData.home.id }"
+                  @click="fantasyTeamId = classicMatchupData.home.id; applyFantasySelection()">
+            <span class="venue-team">{{ classicMatchupData.home.name }} ({{ classicMatchupData.home.season }})</span>
+          </button>
+          <button class="venue-card" :class="{ selected: fantasyTeamId === classicMatchupData.away.id }"
+                  @click="fantasyTeamId = classicMatchupData.away.id; applyFantasySelection()">
+            <span class="venue-team">{{ classicMatchupData.away.name }} ({{ classicMatchupData.away.season }})</span>
+          </button>
+        </div>
+        <p>Home or Away?</p>
+        <div class="venue-grid">
+          <button class="venue-card" :class="{ selected: fantasySidePreference === 'home' }"
+                  @click="fantasySidePreference = 'home'; applyFantasySelection()">
+            <span class="venue-side-label">Home</span>
+          </button>
+          <button class="venue-card" :class="{ selected: fantasySidePreference === 'away' }"
+                  @click="fantasySidePreference = 'away'; applyFantasySelection()">
+            <span class="venue-side-label">Away</span>
+          </button>
+        </div>
+        <p v-if="homeVenue" class="venue-name">{{ homeVenue.name }}</p>
+      </div>
+
+      <!-- Season mode: home/away picker (team already chosen) -->
+      <div v-else class="venue-selection">
+        <p>Home or Away?</p>
         <div class="venue-grid">
           <button class="venue-card" :class="{ selected: playerSide === 'home' }"
                   @click="playerSide = 'home'; selectedVenue = homeVenue?.name || ''">
             <span class="venue-side-label">Home</span>
-            <span class="venue-team">{{ homeTeamName }} ({{ selectedSeason }})</span>
             <span class="venue-name" v-if="homeVenue">{{ homeVenue.name }}</span>
           </button>
           <button class="venue-card" :class="{ selected: playerSide === 'away' }"
                   @click="playerSide = 'away'; selectedVenue = awayVenue?.name || ''">
             <span class="venue-side-label">Away</span>
-            <span class="venue-team">{{ homeTeamName }} ({{ selectedSeason }})</span>
             <span class="venue-name" v-if="awayVenue">{{ awayVenue.name }}</span>
           </button>
         </div>
@@ -1072,6 +1141,9 @@ const showScorecard = ref(false)
 const gameOverDismissed = ref(false)
 const gameMode = ref(null)
 
+/** Whether the current game is a classic matchup (historic or fantasy). */
+const classicMode = ref(false)
+
 /** Which side the player controls — 'home' or 'away'. */
 const playerSide = ref('home')
 const isPlayerHome = computed(() => playerSide.value === 'home')
@@ -1080,16 +1152,18 @@ const theirPrefix = computed(() => isPlayerHome.value ? 'away' : 'home')
 
 /**
  * Resolved game-time team IDs, seasons, and pitcher IDs.
- * When the player picks "away", the teams swap: the player's team becomes the away
- * team and the opponent becomes the home team. These computed properties handle
- * the mapping so startGame/startSimulation always pass correct home/away values.
+ * In season mode, when the player picks "away", the teams swap: the player's team
+ * becomes the away team and the opponent becomes the home team.
+ * In classic mode, home/away are already correctly assigned by the matchup data,
+ * so no swapping is needed — playerSide only indicates which team the player controls.
  */
-const resolvedHomeTeamId = computed(() => isPlayerHome.value ? teamSelected.value : selectedOpponentId.value)
-const resolvedAwayTeamId = computed(() => isPlayerHome.value ? selectedOpponentId.value : teamSelected.value)
-const resolvedHomeSeason = computed(() => isPlayerHome.value ? selectedSeason.value : selectedAwaySeason.value)
-const resolvedAwaySeason = computed(() => isPlayerHome.value ? selectedAwaySeason.value : selectedSeason.value)
-const resolvedHomePitcherId = computed(() => isPlayerHome.value ? selectedPitcherId.value : selectedAwayPitcherId.value)
-const resolvedAwayPitcherId = computed(() => isPlayerHome.value ? selectedAwayPitcherId.value : selectedPitcherId.value)
+const shouldSwap = computed(() => !classicMode.value && !isPlayerHome.value)
+const resolvedHomeTeamId = computed(() => shouldSwap.value ? selectedOpponentId.value : teamSelected.value)
+const resolvedAwayTeamId = computed(() => shouldSwap.value ? teamSelected.value : selectedOpponentId.value)
+const resolvedHomeSeason = computed(() => shouldSwap.value ? selectedAwaySeason.value : selectedSeason.value)
+const resolvedAwaySeason = computed(() => shouldSwap.value ? selectedSeason.value : selectedAwaySeason.value)
+const resolvedHomePitcherId = computed(() => shouldSwap.value ? selectedAwayPitcherId.value : selectedPitcherId.value)
+const resolvedAwayPitcherId = computed(() => shouldSwap.value ? selectedPitcherId.value : selectedAwayPitcherId.value)
 
 /** Index into play_log for the outcome banner. Tracks the latest entry by default. */
 const playLogIndex = ref(0)
@@ -1102,7 +1176,7 @@ const playLogIndex = ref(0)
 // The unlock state is persisted in localStorage so it survives page reloads.
 //
 // What premium unlocks (all enforced in THIS file, not in gameEngine.js):
-//   1. Season range:     2000-2025 (free) → 1920-2025 (premium)
+//   1. Season range:     2000-2025 (free) → 1900-2025 (premium)
 //   2. Historic matchups: 6 (free) → 15 (premium)
 //   3. Fantasy matchups:  6 (free) → 15 (premium)
 //   4. Opponent season:   locked to home season (free) → any season (premium)
@@ -1183,15 +1257,48 @@ const teamSelected = ref(null)
 const selectedSeason = ref(2025)
 
 /**
- * PREMIUM GATE: Available season years for the season dropdown.
- * Generated descending so the most recent seasons appear first.
- *   - Free: 2000-2025 (26 seasons)
- *   - Premium: 1920-2025 (106 seasons — back to the live ball era)
+ * Baseball eras for the season picker.
+ * Each era has a label, year range, and whether it requires premium.
+ * Free users see Moneyball + Modern; premium unlocks all 9 eras.
  */
+const allEras = [
+  { label: 'Dead-Ball Era', start: 1900, end: 1919, premium: true },
+  { label: 'Golden Age', start: 1920, end: 1941, premium: true },
+  { label: 'World War II Era', start: 1942, end: 1946, premium: true },
+  { label: 'Integration Era', start: 1947, end: 1960, premium: true },
+  { label: 'Expansion Era', start: 1961, end: 1975, premium: true },
+  { label: 'Free Agency Era', start: 1976, end: 1993, premium: true },
+  { label: 'Steroid Era', start: 1994, end: 2005, premium: true },
+  { label: 'Moneyball Era', start: 2006, end: 2015, premium: false },
+  { label: 'Modern Era', start: 2016, end: 2025, premium: false },
+]
+
+const availableEras = computed(() =>
+  allEras.filter(e => premiumUnlocked.value || !e.premium)
+)
+
+const selectedEra = ref(allEras[allEras.length - 1])
+const selectedAwayEra = ref(allEras[allEras.length - 1])
+
+function selectAwayEra(era) {
+  selectedAwayEra.value = era
+}
+
+/** All available seasons across unlocked eras (used by opponent dropdown). */
 const availableSeasons = computed(() => {
-  const earliest = premiumUnlocked.value ? 1920 : 2000
-  return Array.from({ length: 2025 - earliest + 1 }, (_, i) => 2025 - i)
+  const eras = availableEras.value
+  const years = []
+  for (let i = eras.length - 1; i >= 0; i--) {
+    for (let y = eras[i].end; y >= eras[i].start; y--) {
+      years.push(y)
+    }
+  }
+  return years
 })
+
+function selectEra(era) {
+  selectedEra.value = era
+}
 
 /**
  * Loading flag for the home team's pitcher list API call.
@@ -1272,7 +1379,6 @@ const selectedAwayPitcherId = ref(null)
  * classicMode also affects the goBack() behavior — from step 6 in classic
  * mode, "Back" returns to step 1 (not step 5) since steps 2-5 were skipped.
  */
-const classicMode = ref(false)
 const classicLabel = ref('')
 const classicMatchupData = ref(null)
 
@@ -1764,7 +1870,11 @@ async function selectClassicMatchup(matchup) {
   classicLabel.value = matchup.label || ''
   classicMatchupData.value = matchup
   selectedWeather.value = matchup.weather || 'clear'
+  playerSide.value = 'home'
+  fantasySidePreference.value = 'home'
+  fantasySwapped.value = false
   teamSelected.value = matchup.home.id
+  fantasyTeamId.value = matchup.home.id
   selectedSeason.value = matchup.home.season
   selectedOpponentId.value = matchup.away.id
   selectedAwaySeason.value = matchup.away.season
@@ -1862,12 +1972,11 @@ async function goToStep(step) {
     return
   }
 
-  // When entering step 3, fetch away teams for the default away season
-  // PREMIUM GATE: Free users can't change opponent season — lock it to home team's season
+  // When entering step 3, default away season to the home team's season.
+  // Premium users can then change it; free users cannot.
   if (step === 3) {
-    if (!premiumUnlocked.value) {
-      selectedAwaySeason.value = selectedSeason.value
-    }
+    selectedAwaySeason.value = selectedSeason.value
+    selectedAwayEra.value = selectedEra.value
     setupStep.value = step
     if (!awayTeams.value.length) {
       loadingAwayTeams.value = true
@@ -1942,6 +2051,73 @@ function handleBack() {
     return
   }
   goBack()
+}
+
+/**
+ * Fantasy matchup selection state.
+ * fantasyTeamId tracks the team ID the player chose (stable across swaps).
+ * fantasySidePreference tracks whether the player wants to bat as home or away.
+ * fantasySwapped tracks whether data is currently swapped from the original matchup.
+ */
+const fantasyTeamId = ref(null)
+const fantasySidePreference = ref('home')
+const fantasySwapped = ref(false)
+
+/**
+ * Apply the fantasy team + side selection.
+ * Uses the original matchup data to determine whether a swap is needed,
+ * and tracks swap state to avoid double-swapping.
+ */
+function applyFantasySelection() {
+  if (!fantasyTeamId.value || !classicMatchupData.value) return
+  const matchup = classicMatchupData.value
+  const teamIsOriginallyHome = fantasyTeamId.value === matchup.home.id
+  const wantsHome = fantasySidePreference.value === 'home'
+
+  // Need swap when the team's original side doesn't match the preferred side
+  const needsSwap = (teamIsOriginallyHome && !wantsHome) || (!teamIsOriginallyHome && wantsHome)
+
+  if (needsSwap && !fantasySwapped.value) {
+    swapHomeAway()
+    fantasySwapped.value = true
+  } else if (!needsSwap && fantasySwapped.value) {
+    swapHomeAway()
+    fantasySwapped.value = false
+  }
+
+  playerSide.value = fantasySidePreference.value
+}
+
+/**
+ * Swap home and away team data in all refs.
+ * Exchanges team IDs, seasons, pitcher IDs, pitcher lists, venues, and team lists.
+ */
+function swapHomeAway() {
+  const tmpTeam = teamSelected.value
+  teamSelected.value = selectedOpponentId.value
+  selectedOpponentId.value = tmpTeam
+
+  const tmpSeason = selectedSeason.value
+  selectedSeason.value = selectedAwaySeason.value
+  selectedAwaySeason.value = tmpSeason
+
+  const tmpPitcher = selectedPitcherId.value
+  selectedPitcherId.value = selectedAwayPitcherId.value
+  selectedAwayPitcherId.value = tmpPitcher
+
+  const tmpPitcherList = pitcherList.value
+  pitcherList.value = awayPitcherList.value
+  awayPitcherList.value = tmpPitcherList
+
+  const tmpVenue = homeVenue.value
+  homeVenue.value = awayVenue.value
+  awayVenue.value = tmpVenue
+
+  const tmpTeams = homeTeams.value
+  homeTeams.value = awayTeams.value
+  awayTeams.value = tmpTeams
+
+  selectedVenue.value = homeVenue.value?.name || ''
 }
 
 function goBack() {
@@ -2306,6 +2482,9 @@ async function resetGame() {
   calledShotPendingAction = null
   gameMode.value = null
   playerSide.value = 'home'
+  fantasyTeamId.value = null
+  fantasySidePreference.value = 'home'
+  fantasySwapped.value = false
   stopReplayTimer()
   simulating.value = false; simPaused.value = false
   simSnapshots.value = []
@@ -2317,6 +2496,8 @@ async function resetGame() {
   setupStep.value = 1
   teamSelected.value = null
   selectedSeason.value = 2025
+  selectedEra.value = allEras[allEras.length - 1]
+  selectedAwayEra.value = allEras[allEras.length - 1]
   pitcherList.value = []
   selectedPitcherId.value = null
   selectedOpponentId.value = null
@@ -2957,32 +3138,72 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   margin: 0 0 16px 0;
 }
 
-.season-hero-dropdown {
-  background: #3a3a4a;
-  color: #e94560;
-  border: 2px solid #e94560;
-  border-radius: 8px;
-  padding: 12px 24px;
-  font-size: 24px;
-  font-weight: bold;
-  font-family: 'Courier New', monospace;
-  cursor: pointer;
-  min-width: 160px;
-  text-align: center;
-  transition: all 0.2s;
-}
-
-.season-hero-dropdown:hover {
-  background: #4a4a5a;
-  border-color: #e94560;
-  color: #fff;
-}
-
 .season-hero-loading {
   display: block;
   color: #888;
   font-size: 13px;
   margin-top: 8px;
+}
+
+.selected-year-label {
+  text-align: center;
+  font-size: 28px;
+  font-weight: bold;
+  color: #e94560;
+  margin: 0 0 4px;
+  letter-spacing: 1px;
+}
+
+.era-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  max-width: 640px;
+  margin: 0 auto 4px;
+}
+
+.era-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  background: #1a1a2e;
+  border: 2px solid #333;
+  border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.era-card:hover {
+  border-color: #666;
+}
+
+.era-card.selected {
+  border-color: #e94560;
+  background: #3a3a4a;
+}
+
+.era-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #eee;
+}
+
+.era-select {
+  background: transparent;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 13px;
+  cursor: pointer;
+  width: 90%;
+  text-align: center;
+}
+
+.era-card.selected .era-select {
+  border-color: #e94560;
+  color: #fff;
 }
 
 /* ========== Start Screen (Steps 2-6) ========== */

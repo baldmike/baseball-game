@@ -43,26 +43,39 @@ describe('Free vs Premium — Season Picker', () => {
     expect(wrapper.vm.selectedAwaySeason).toBe(2025)
   })
 
-  it('free user sees seasons from 2025 down to 2000 only (26 options)', async () => {
+  it('free user sees only Moneyball and Modern era cards', async () => {
     const wrapper = mountGame()
     wrapper.vm.gameMode = 'season'
     await wrapper.vm.$nextTick()
 
-    const options = wrapper.findAll('.season-hero-dropdown option')
-    expect(options.length).toBe(26)
-    expect(options[0].element.value).toBe('2025')
-    expect(options[options.length - 1].element.value).toBe('2000')
+    const eraCards = wrapper.findAll('.era-card')
+    expect(eraCards.length).toBe(2)
+    expect(eraCards[0].text()).toContain('Moneyball Era')
+    expect(eraCards[1].text()).toContain('Modern Era')
   })
 
-  it('premium user sees seasons from 2025 down to 1920 (106 options)', async () => {
+  it('premium user sees all 9 era cards', async () => {
     const wrapper = mountPremiumGame()
     wrapper.vm.gameMode = 'season'
     await wrapper.vm.$nextTick()
 
-    const options = wrapper.findAll('.season-hero-dropdown option')
-    expect(options.length).toBe(106)
-    expect(options[0].element.value).toBe('2025')
-    expect(options[options.length - 1].element.value).toBe('1920')
+    const eraCards = wrapper.findAll('.era-card')
+    expect(eraCards.length).toBe(9)
+    expect(eraCards[0].text()).toContain('Dead-Ball Era')
+    expect(eraCards[eraCards.length - 1].text()).toContain('Modern Era')
+  })
+
+  it('each era card contains a dropdown with years for that era', async () => {
+    const wrapper = mountPremiumGame()
+    wrapper.vm.gameMode = 'season'
+    await wrapper.vm.$nextTick()
+
+    // Dead-Ball Era card (first) should have 20 year options + 1 disabled placeholder
+    const firstCard = wrapper.findAll('.era-card')[0]
+    const options = firstCard.findAll('.era-select option:not([disabled])')
+    expect(options.length).toBe(20)
+    expect(options[0].element.value).toBe('1919')
+    expect(options[options.length - 1].element.value).toBe('1900')
   })
 
   it('free user sees upgrade CTA on Pick a Season page', async () => {
@@ -72,7 +85,7 @@ describe('Free vs Premium — Season Picker', () => {
 
     const unlockSection = wrapper.find('.unlock-section')
     expect(unlockSection.exists()).toBe(true)
-    expect(unlockSection.find('.unlock-btn').text()).toMatch(/1920/)
+    expect(unlockSection.find('.unlock-btn').text()).toMatch(/1900/)
   })
 
   it('premium user does not see upgrade CTA on Pick a Season page', async () => {
@@ -112,16 +125,17 @@ describe('Free vs Premium — Opponent Season (Step 3)', () => {
     wrapper.vm.selectedSeason = 2010
     await goToStep3(wrapper)
 
-    const seasonLabel = wrapper.find('.pregame-season span[style]')
-    expect(seasonLabel.exists()).toBe(true)
-    expect(seasonLabel.text()).toBe('2010')
+    expect(wrapper.find('.era-grid').exists()).toBe(false)
+    expect(wrapper.text()).toContain('2010')
   })
 
-  it('premium user sees the away season dropdown', async () => {
+  it('premium user sees the away era selector', async () => {
     const wrapper = mountPremiumGame()
     await goToStep3(wrapper)
 
-    expect(wrapper.find('#away-season').exists()).toBe(true)
+    expect(wrapper.find('.era-grid').exists()).toBe(true)
+    const eraCards = wrapper.findAll('.era-card')
+    expect(eraCards.length).toBe(9)
   })
 
   it('free user sees upgrade CTA on opponent page', async () => {
@@ -159,15 +173,17 @@ describe('Free vs Premium — Opponent Season (Step 3)', () => {
     expect(wrapper.vm.selectedAwaySeason).toBe(2015)
   })
 
-  it('goToStep(3) preserves independent away season for premium users', async () => {
+  it('goToStep(3) defaults away season and era to home season for premium users', async () => {
     const wrapper = mountPremiumGame()
     wrapper.vm.gameMode = 'season'
     wrapper.vm.selectedSeason = 2015
     wrapper.vm.selectedAwaySeason = 2020
+    wrapper.vm.selectedEra = wrapper.vm.allEras.find(e => e.label === 'Moneyball Era')
     await wrapper.vm.$nextTick()
 
     await wrapper.vm.goToStep(3)
-    expect(wrapper.vm.selectedAwaySeason).toBe(2020)
+    expect(wrapper.vm.selectedAwaySeason).toBe(2015)
+    expect(wrapper.vm.selectedAwayEra.label).toBe('Moneyball Era')
   })
 })
 

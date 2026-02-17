@@ -608,6 +608,7 @@
             <div class="fatigue-bar">
               <div class="fatigue-fill" :style="{ width: (100 - awayFatiguePercent) + '%' }" :class="awayFatigueLevel"></div>
             </div>
+            <span class="fatigue-label">Arm-O-Meter</span>
           </div>
         </div>
 
@@ -634,6 +635,7 @@
             <div class="fatigue-bar">
               <div class="fatigue-fill" :style="{ width: (100 - homeFatiguePercent) + '%' }" :class="homeFatigueLevel"></div>
             </div>
+            <span class="fatigue-label">Arm-O-Meter</span>
           </div>
         </div>
       </div>
@@ -4196,6 +4198,14 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 .fatigue-fill.gassed {
   background: #e94560;
+}
+
+.fatigue-label {
+  font-size: 9px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-align: center;
 }
 
 /* ========== Bullpen Controls ========== */

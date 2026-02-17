@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <header class="app-header" v-if="!(activeTab === 'play' && gameRef?.isPlaying)">
+    <header class="app-header">
       <div class="header-inner">
         <a class="header-logo" href="#" @click.prevent="goHome">
           <svg viewBox="0 0 32 32" class="baseball-icon">
@@ -21,7 +21,14 @@
             <span class="header-subtitle">Powered by 100% All-Natural MLB rosters, stats and guts.</span>
           </div>
         </a>
-        <nav class="nav-tabs">
+        <!-- During gameplay: home + volume buttons instead of nav tabs -->
+        <div v-if="activeTab === 'play' && gameRef?.isPlaying" class="game-header-controls">
+          <button class="nav-tab" @click="goHome" title="Home">&#8962; Home</button>
+          <button class="nav-tab sound-nav-btn" @click="gameRef.onToggleSound()" :title="gameRef.soundMuted ? 'Unmute' : 'Mute'">
+            {{ gameRef.soundMuted ? '🔇' : '🔊' }}
+          </button>
+        </div>
+        <nav v-else class="nav-tabs">
           <button
             v-if="activeTab === 'play' && gameRef?.showBackButton"
             class="nav-tab"
@@ -156,6 +163,17 @@ body {
 .nav-tab.active {
   background: #e94560;
   color: white;
+}
+
+.game-header-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sound-nav-btn {
+  min-width: auto;
+  padding: 6px 10px;
 }
 
 .app-main {

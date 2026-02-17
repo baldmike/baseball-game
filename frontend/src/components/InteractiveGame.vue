@@ -446,15 +446,6 @@
       (diamond + player headshots), last play banner, controls, and play log.
     -->
     <div v-if="game">
-      <button class="home-btn" @click="resetGame" title="Home">&#8962;</button>
-      <!--
-        Sound Toggle — positioned absolutely in the top-right corner.
-        Toggles the global mute state from the useSoundEffects composable.
-        The emoji changes between speaker and muted-speaker icons.
-      -->
-      <button class="sound-toggle" @click="onToggleSound" :title="soundMuted ? 'Unmute' : 'Mute'">
-        {{ soundMuted ? '🔇' : '🔊' }}
-      </button>
 
       <!--
         Game Over Overlay — a semi-transparent dark overlay that covers
@@ -645,7 +636,7 @@
           <button class="deck-btn" :class="{ active: simSpeed === 1000 }" @click="setSimSpeed(1000)" title="Normal">&#9654;</button>
           <button class="deck-btn" :class="{ active: simSpeed === 300 }" @click="setSimSpeed(300)" title="Fast">&#9654;&#9654;</button>
           <button class="deck-btn deck-pause" :class="{ active: simPaused }" @click="toggleSimPause()" title="Pause / Resume"></button>
-          <button class="deck-btn deck-stop" @click="skipToEnd()" title="Skip to End">&#9632;</button>
+          <button class="deck-btn deck-stop" @click="skipToEnd()" title="Skip to End"></button>
           <button class="deck-btn deck-takeover" @click="takeOverGame()" title="Take Over &amp; Play">&#9654;|</button>
         </div>
       </div>
@@ -2499,9 +2490,11 @@ const isPlaying = computed(() => !!game.value)
  * Expose properties to the parent (App.vue) via template ref:
  * - showBackButton: controls visibility of the back button in the header nav
  * - handleBack: navigates back one step in the setup wizard
- * - isPlaying: hides the entire header during active gameplay
+ * - isPlaying: swaps nav tabs for home/volume buttons in the header
+ * - resetGame: returns to the setup wizard
+ * - soundMuted / onToggleSound: sound controls rendered in the header during gameplay
  */
-defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
+defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onToggleSound })
 
 </script>
 
@@ -3711,9 +3704,6 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
 }
 
 .deck-stop {
-  color: #e94560;
-  font-size: 0;
-  letter-spacing: 0;
   position: relative;
 }
 
@@ -3741,51 +3731,6 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame })
 .deck-takeover:hover {
   background: #4caf50;
   color: #0a0a1a;
-}
-
-/* ========== Sound Toggle ========== */
-/*
-  Positioned absolutely in the top-right corner of the game container.
-  z-index: 5 keeps it above normal game content but below the game-over
-  overlay (z-index: 10), so it's hidden when the game ends.
-*/
-.home-btn {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background: none;
-  border: 1px solid #555;
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 18px;
-  cursor: pointer;
-  z-index: 5;
-  color: #aaa;
-  line-height: 1;
-}
-
-.home-btn:hover {
-  border-color: #e94560;
-  color: #e0e0e0;
-}
-
-.sound-toggle {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: none;
-  border: 1px solid #555;
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 18px;
-  cursor: pointer;
-  z-index: 5;
-  transition: border-color 0.2s;
-}
-
-/* Sound toggle hover: red border to confirm interactivity */
-.sound-toggle:hover {
-  border-color: #e94560;
 }
 
 /* ========== Classic Matchups Section ========== */

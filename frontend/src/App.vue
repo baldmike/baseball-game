@@ -2,7 +2,7 @@
   <div id="app">
     <header class="app-header">
       <div class="header-inner">
-        <div class="header-logo">
+        <a class="header-logo" href="#" @click.prevent="goHome">
           <svg viewBox="0 0 32 32" class="baseball-icon">
             <circle cx="16" cy="16" r="14" fill="none" stroke="#e94560" stroke-width="2"/>
             <path d="M8 6 Q16 16 8 26" fill="none" stroke="#e94560" stroke-width="1.5"/>
@@ -17,20 +17,58 @@
             <line x1="25" y1="21" x2="22" y2="20" stroke="#e94560" stroke-width="1" stroke-linecap="round"/>
           </svg>
           <div class="header-text">
-            <h1>Basebald</h1>
-            <span class="header-subtitle">Powered by real MLB rosters &amp; stats</span>
+            <h1>BaseBald</h1>
+            <span class="header-subtitle">Powered by 100% All-Natural MLB rosters, stats and guts.</span>
           </div>
+        </a>
+        <!-- During gameplay: home + volume buttons instead of nav tabs -->
+        <div v-if="activeTab === 'play' && gameRef?.isPlaying" class="game-header-controls">
+          <button class="nav-tab" @click="goHome" title="Home">&#8962; Home</button>
+          <button class="nav-tab sound-nav-btn" @click="gameRef.onToggleSound()" :title="gameRef.soundMuted ? 'Unmute' : 'Mute'">
+            {{ gameRef.soundMuted ? '🔇' : '🔊' }}
+          </button>
         </div>
+        <nav v-else class="nav-tabs">
+          <button
+            v-if="activeTab === 'play' && gameRef?.showBackButton"
+            class="nav-tab"
+            @click="gameRef.handleBack()"
+          >&larr; Back</button>
+          <button
+            class="nav-tab"
+            :class="{ active: activeTab === 'play' }"
+            @click="activeTab = 'play'"
+          >Play</button>
+          <button
+            class="nav-tab"
+            :class="{ active: activeTab === 'live' }"
+            @click="activeTab = 'live'"
+          >Live Games</button>
+        </nav>
       </div>
     </header>
     <main class="app-main">
-      <InteractiveGame />
+      <InteractiveGame v-if="activeTab === 'play'" ref="gameRef" />
+      <GameView v-else-if="activeTab === 'live'" />
     </main>
+    <footer class="app-footer">
+      <span>&copy; BALDMIKE</span>
+    </footer>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import InteractiveGame from './components/InteractiveGame.vue'
+import GameView from './components/GameView.vue'
+
+const activeTab = ref('play')
+const gameRef = ref(null)
+
+function goHome() {
+  activeTab.value = 'play'
+  gameRef.value?.resetGame()
+}
 </script>
 
 <style>
@@ -61,13 +99,15 @@ body {
   margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
 }
 
 .header-logo {
   display: flex;
   align-items: center;
   gap: 12px;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .baseball-icon {
@@ -97,6 +137,45 @@ body {
   text-transform: uppercase;
 }
 
+.nav-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-tab {
+  background: transparent;
+  border: 2px solid #e94560;
+  color: #e94560;
+  padding: 6px 14px;
+  min-width: 90px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.nav-tab:hover:not(.active) {
+  background: rgba(233, 69, 96, 0.15);
+}
+
+.nav-tab.active {
+  background: #e94560;
+  color: white;
+}
+
+.game-header-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sound-nav-btn {
+  min-width: auto;
+  padding: 6px 10px;
+}
+
 .app-main {
   max-width: 900px;
   width: 100%;
@@ -104,5 +183,28 @@ body {
   padding: 20px;
   box-sizing: border-box;
   flex: 1;
+}
+
+.app-footer {
+  text-align: center;
+  padding: 16px;
+  color: #555;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+@media (max-width: 600px) {
+  .header-inner {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .header-logo {
+    justify-content: center;
+  }
+
+  .nav-tabs {
+    justify-content: center;
+  }
 }
 </style>

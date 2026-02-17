@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Background circle -->
+  <circle cx="60" cy="60" r="56" fill="#1a1a2e" stroke="#c4a44a" stroke-width="4"/>
+  <!-- Baseball stitching arc left -->
+  <path d="M38 28 Q30 45 30 60 Q30 75 38 92" fill="none" stroke="#c4a44a" stroke-width="2" stroke-linecap="round"/>
+  <!-- Baseball stitching arc right -->
+  <path d="M82 28 Q90 45 90 60 Q90 75 82 92" fill="none" stroke="#c4a44a" stroke-width="2" stroke-linecap="round"/>
+  <!-- Stitch marks left -->
+  <line x1="34" y1="34" x2="42" y2="32" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="30" y1="42" x2="38" y2="41" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="28" y1="50" x2="36" y2="50" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="28" y1="58" x2="36" y2="58" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="28" y1="66" x2="36" y2="66" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="30" y1="74" x2="38" y2="75" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="34" y1="82" x2="42" y2="84" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Stitch marks right -->
+  <line x1="86" y1="34" x2="78" y2="32" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="90" y1="42" x2="82" y2="41" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="92" y1="50" x2="84" y2="50" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="92" y1="58" x2="84" y2="58" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="92" y1="66" x2="84" y2="66" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="90" y1="74" x2="82" y2="75" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="86" y1="82" x2="78" y2="84" stroke="#c4a44a" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- NLB text -->
+  <text x="60" y="65" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="28" fill="#c4a44a" letter-spacing="2">NLB</text>
+</svg>

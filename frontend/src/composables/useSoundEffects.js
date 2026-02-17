@@ -141,7 +141,7 @@ let muted = false
  *
  * Each sound function can be called individually for fine-grained control,
  * or you can use `playForLastPlay(text)` to automatically pick the right
- * sound based on the play description text from the backend.
+ * sound based on the play description text from the game engine.
  *
  * @returns {Object} Object containing all sound functions and mute controls
  */
@@ -314,7 +314,7 @@ export function useSoundEffects() {
 
   /**
    * Automatically select and play the appropriate sound effect based on
-   * the text description of the last play from the backend.
+   * the text description of the last play from the game engine.
    *
    * This is the main entry point used by the game UI — rather than having
    * the component figure out which sound to play, it just passes the
@@ -324,7 +324,7 @@ export function useSoundEffects() {
    * are checked before general ones (like "ball") to avoid false positives.
    * For example, "ball four" should trigger walk(), not ball().
    *
-   * @param {string} lastPlay - The play description text from the backend
+   * @param {string} lastPlay - The play description text from the game engine
    */
   function playForLastPlay(lastPlay) {
     // Don't play anything if there's no play text or sounds are muted

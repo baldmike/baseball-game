@@ -1,21 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pip install:*)",
-      "Bash(pip3 install:*)",
-      "Bash(python3 -m venv:*)",
-      "Bash(source:*)",
-      "Bash(curl:*)",
-      "Bash(python3:*)",
       "Bash(npm run dev:*)",
-      "Bash(python:*)",
-      "Bash(uvicorn:*)",
       "WebSearch",
       "WebFetch(domain:github.com)",
       "Bash(lsof:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm run build:*)",
+      "WebFetch(domain:statsapi.mlb.com)",
+      "Bash(git push:*)",
+      "Bash(npm test:*)",
+      "Bash(git -C /Users/baldmike/Desktop/2026_code/baseball-game status)",
+      "Bash(git -C /Users/baldmike/Desktop/2026_code/baseball-game log --oneline -5)",
+      "Bash(git -C /Users/baldmike/Desktop/2026_code/baseball-game push origin fullstack)",
+      "Bash(bash deploy.sh)",
+      "Bash(npm run test:*)"
     ]
   }
 }

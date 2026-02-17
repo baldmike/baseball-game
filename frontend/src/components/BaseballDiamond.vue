@@ -27,7 +27,7 @@
     -->
     <svg viewBox="0 0 200 200" class="diamond-svg">
       <!-- Grass background — green rectangle with rounded corners fills the entire SVG -->
-      <rect x="0" y="0" width="200" height="200" fill="#2d5a27" rx="8" />
+      <rect x="0" y="0" width="200" height="200" fill="#3a8f35" rx="8" />
 
       <!--
         Infield dirt diamond — the brown diamond shape representing the dirt infield.
@@ -51,7 +51,7 @@
         In real baseball, home plate is a 5-sided polygon. Here we approximate
         it with a small diamond shape for visual clarity at this scale.
       -->
-      <polygon points="100,168 94,174 100,180 106,174" fill="white" />
+      <polygon points="94,170 106,170 106,177 100,183 94,177" fill="white" stroke="#ccc" stroke-width="0.5" />
 
       <!--
         Pitcher's mound — a circle with a small white rectangle (the rubber).
@@ -61,62 +61,50 @@
       <circle cx="100" cy="100" r="5" fill="#c4956a" stroke="#8b6914" stroke-width="1" />
       <rect x="97" y="98" width="6" height="1.5" fill="white" />
 
-      <!--
-        1ST BASE — a small square rotated 45 degrees to appear as a diamond.
-
-        Dynamic styling via Vue bindings:
-        - fill: Yellow (#ffdd00) when occupied (runner on base), white when empty
-        - stroke: Orange when occupied (matches the yellow), gray when empty
-
-        The transform="rotate(45, 170, 100)" rotates the square around the
-        base's center point to create the traditional diamond-shaped base icon.
-
-        bases[0] = 1st base occupancy (true/false)
-      -->
+      <!-- 1ST BASE: show base square when empty, runner figure when occupied -->
       <rect
-        :x="165" :y="95" width="10" height="10"
-        :fill="bases[0] ? '#ffdd00' : 'white'"
-        :stroke="bases[0] ? '#ff8800' : '#ccc'"
-        stroke-width="1.5"
+        v-if="!bases[0]"
+        x="165" y="95" width="10" height="10"
+        fill="white" stroke="#ccc" stroke-width="1.5"
         transform="rotate(45, 170, 100)"
       />
+      <g v-else :transform="`translate(${leadoffs[0] ? 162 : 170}, ${leadoffs[0] ? 89 : 97})`">
+        <circle cx="0" cy="-11" r="3" fill="#111" />
+        <line x1="0" y1="-8" x2="0" y2="-1" stroke="#111" stroke-width="1.5" stroke-linecap="round" />
+        <line x1="-4" y1="-7" x2="4" y2="-4" stroke="#111" stroke-width="1.2" stroke-linecap="round" />
+        <line x1="0" y1="-1" x2="4" y2="5" stroke="#111" stroke-width="1.3" stroke-linecap="round" />
+        <line x1="0" y1="-1" x2="-4" y2="4" stroke="#111" stroke-width="1.3" stroke-linecap="round" />
+      </g>
 
-      <!--
-        2ND BASE — same pattern as 1st base but positioned at the top of the diamond.
-        bases[1] = 2nd base occupancy (true/false)
-      -->
+      <!-- 2ND BASE: show base square when empty, runner figure when occupied -->
       <rect
-        :x="95" :y="25" width="10" height="10"
-        :fill="bases[1] ? '#ffdd00' : 'white'"
-        :stroke="bases[1] ? '#ff8800' : '#ccc'"
-        stroke-width="1.5"
+        v-if="!bases[1]"
+        x="95" y="25" width="10" height="10"
+        fill="white" stroke="#ccc" stroke-width="1.5"
         transform="rotate(45, 100, 30)"
       />
+      <g v-else :transform="`translate(${leadoffs[1] ? 91 : 100}, ${leadoffs[1] ? 36 : 27})`">
+        <circle cx="0" cy="-11" r="3" fill="#111" />
+        <line x1="0" y1="-8" x2="0" y2="-1" stroke="#111" stroke-width="1.5" stroke-linecap="round" />
+        <line x1="-4" y1="-7" x2="4" y2="-4" stroke="#111" stroke-width="1.2" stroke-linecap="round" />
+        <line x1="0" y1="-1" x2="4" y2="5" stroke="#111" stroke-width="1.3" stroke-linecap="round" />
+        <line x1="0" y1="-1" x2="-4" y2="4" stroke="#111" stroke-width="1.3" stroke-linecap="round" />
+      </g>
 
-      <!--
-        3RD BASE — same pattern but positioned at the left of the diamond.
-        bases[2] = 3rd base occupancy (true/false)
-      -->
+      <!-- 3RD BASE: show base square when empty, runner figure when occupied -->
       <rect
-        :x="25" :y="95" width="10" height="10"
-        :fill="bases[2] ? '#ffdd00' : 'white'"
-        :stroke="bases[2] ? '#ff8800' : '#ccc'"
-        stroke-width="1.5"
+        v-if="!bases[2]"
+        x="25" y="95" width="10" height="10"
+        fill="white" stroke="#ccc" stroke-width="1.5"
         transform="rotate(45, 30, 100)"
       />
-
-      <!--
-        Runner dots — red circles shown on top of occupied bases.
-        These are conditionally rendered (v-if) and placed at each base's
-        center coordinates. The bright red color makes runners instantly
-        visible against the yellow base and brown dirt background.
-
-        The dots are rendered AFTER the base squares in the SVG so they
-        appear on top (SVG uses painter's model — later elements paint over earlier ones).
-      -->
-      <circle v-if="bases[0]" cx="170" cy="100" r="7" fill="#ff4444" stroke="#cc0000" stroke-width="1" />
-      <circle v-if="bases[1]" cx="100" cy="30" r="7" fill="#ff4444" stroke="#cc0000" stroke-width="1" />
-      <circle v-if="bases[2]" cx="30" cy="100" r="7" fill="#ff4444" stroke="#cc0000" stroke-width="1" />
+      <g v-else :transform="`translate(${leadoffs[2] ? 39 : 30}, ${leadoffs[2] ? 107 : 97})`">
+        <circle cx="0" cy="-11" r="3" fill="#111" />
+        <line x1="0" y1="-8" x2="0" y2="-1" stroke="#111" stroke-width="1.5" stroke-linecap="round" />
+        <line x1="-4" y1="-7" x2="4" y2="-4" stroke="#111" stroke-width="1.2" stroke-linecap="round" />
+        <line x1="0" y1="-1" x2="4" y2="5" stroke="#111" stroke-width="1.3" stroke-linecap="round" />
+        <line x1="0" y1="-1" x2="-4" y2="4" stroke="#111" stroke-width="1.3" stroke-linecap="round" />
+      </g>
 
       <!--
         Base labels — "1B", "2B", "3B" text positioned outside each base.
@@ -146,6 +134,10 @@
  */
 defineProps({
   bases: {
+    type: Array,
+    default: () => [false, false, false],
+  },
+  leadoffs: {
     type: Array,
     default: () => [false, false, false],
   },

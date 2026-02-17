@@ -3,9 +3,9 @@
     Scoreboard — a traditional baseball line score display.
 
     Shows a grid with:
-      - Header row: inning numbers + "R" (runs total) column
-      - Away team row: runs scored per inning + total
-      - Home team row: runs scored per inning + total
+      - Header row: inning numbers + R H E (runs, hits, errors) columns
+      - Away team row: runs scored per inning + R H E totals
+      - Home team row: runs scored per inning + R H E totals
 
     Below the grid, three info panels show:
       - Count (balls-strikes)
@@ -37,8 +37,10 @@
       >
         {{ i + 1 }}
       </div>
-      <!-- "R" column header for runs total -->
+      <!-- R H E column headers -->
       <div class="cell header total-col">R</div>
+      <div class="cell header total-col">H</div>
+      <div class="cell header total-col">E</div>
 
       <!--
         Away team row.
@@ -63,8 +65,10 @@
       >
         {{ i < inning || (i === inning - 1 && isTop) ? runs : '' }}
       </div>
-      <!-- Away team total runs — always visible -->
+      <!-- Away team R H E totals — always visible -->
       <div class="cell total-col">{{ awayTotal }}</div>
+      <div class="cell total-col">{{ awayHits }}</div>
+      <div class="cell total-col">{{ awayErrors }}</div>
 
       <!--
         Home team row.
@@ -85,8 +89,10 @@
       >
         {{ i < inning - 1 || (i === inning - 1 && !isTop) ? runs : '' }}
       </div>
-      <!-- Home team total runs — always visible -->
+      <!-- Home team R H E totals — always visible -->
       <div class="cell total-col">{{ homeTotal }}</div>
+      <div class="cell total-col">{{ homeHits }}</div>
+      <div class="cell total-col">{{ homeErrors }}</div>
     </div>
 
     <!--
@@ -141,6 +147,21 @@
         </div>
       </div>
     </div>
+
+    <!-- Last Play Banner — shows the most recent play description -->
+    <div class="last-play" v-if="playLog && playLog.length">
+      <button
+        class="play-nav-btn"
+        :disabled="currentPlayIndex <= 0"
+        @click="$emit('update:playLogIndex', currentPlayIndex - 1)"
+      >&lsaquo;</button>
+      <p class="play-text">{{ playLog[currentPlayIndex] }}</p>
+      <button
+        class="play-nav-btn"
+        :disabled="currentPlayIndex >= playLog.length - 1"
+        @click="$emit('update:playLogIndex', currentPlayIndex + 1)"
+      >&rsaquo;</button>
+    </div>
   </div>
 </template>
 
@@ -180,16 +201,33 @@ const props = defineProps({
   awayTeamId: { type: Number, default: 0 },
   /** Home team numeric ID — used to load the team logo from the MLB CDN */
   homeTeamId: { type: Number, default: 0 },
+  /** Total hits for the away team */
+  awayHits: { type: Number, default: 0 },
+  /** Total hits for the home team */
+  homeHits: { type: Number, default: 0 },
+  /** Total errors for the away team */
+  awayErrors: { type: Number, default: 0 },
+  /** Total errors for the home team */
+  homeErrors: { type: Number, default: 0 },
+  /** Play log array of play description strings */
+  playLog: { type: Array, default: () => [] },
+  /** Current index into the play log */
+  playLogIndex: { type: Number, default: 0 },
 })
+
+defineEmits(['update:playLogIndex'])
+
+const currentPlayIndex = computed(() => props.playLogIndex)
 
 /** Build the MLB CDN URL for a team's logo SVG. */
 function logoUrl(teamId) {
+  if (teamId >= 1000) return `${import.meta.env.BASE_URL}negro-leagues-logo.svg`
   return `https://www.mlbstatic.com/team-logos/${teamId}.svg`
 }
 
 /**
  * Total number of innings to display in the scoreboard.
- * Derived from the length of the away score array, which the backend
+ * Derived from the length of the away score array, which the game engine
  * extends automatically for extra innings beyond the standard 9.
  * This means the grid automatically grows columns for extras — no hardcoded 9.
  */
@@ -208,7 +246,7 @@ const totalInnings = computed(() => props.awayScore.length)
  * - 40px total column is slightly wider for emphasis
  */
 const gridStyle = computed(() => ({
-  gridTemplateColumns: `minmax(50px, 80px) repeat(${totalInnings.value}, 1fr) minmax(30px, 40px)`,
+  gridTemplateColumns: `minmax(50px, 80px) repeat(${totalInnings.value}, 1fr) repeat(3, minmax(30px, 40px))`,
 }))
 </script>
 
@@ -280,6 +318,7 @@ const gridStyle = computed(() => ({
   height: 18px;
   object-fit: contain;
 }
+
 
 /* Team column in the header row should be gray, not red */
 .cell.team-col.header {
@@ -454,5 +493,50 @@ const gridStyle = computed(() => ({
     width: 12px;
     height: 12px;
   }
+
+  .last-play {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+}
+
+/* ========== Last Play Banner ========== */
+.last-play {
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid #333;
+  text-align: center;
+  font-size: 15px;
+  color: #ffffff;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.last-play .play-text {
+  flex: 1;
+  margin: 0;
+}
+
+.play-nav-btn {
+  background: none;
+  border: 1px solid #555;
+  color: #ccc;
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 8px;
+  line-height: 1;
+}
+
+.play-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.play-nav-btn:hover:not(:disabled) {
+  border-color: #e94560;
+  color: #fff;
 }
 </style>

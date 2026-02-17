@@ -51,7 +51,7 @@
         In real baseball, home plate is a 5-sided polygon. Here we approximate
         it with a small diamond shape for visual clarity at this scale.
       -->
-      <polygon points="94,170 106,170 106,177 100,183 94,177" fill="white" stroke="#ccc" stroke-width="0.5" />
+      <polygon points="100,167 106,173 106,180 94,180 94,173" fill="white" stroke="#ccc" stroke-width="0.5" />
 
       <!--
         Pitcher's mound — a circle with a small white rectangle (the rubber).

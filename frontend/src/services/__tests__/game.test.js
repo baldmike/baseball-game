@@ -983,3 +983,33 @@ describe('half-inning integrity', () => {
     }
   })
 })
+
+// ──────────────────────────────────────────────
+// BATTING ORDER — visiting team always bats first (top of 1st)
+// ──────────────────────────────────────────────
+describe('batting order', () => {
+  it('game starts with top of inning 1 (visiting team batting)', () => {
+    const state = makeGameState()
+    expect(state.inning).toBe(1)
+    expect(state.is_top).toBe(true)
+    // Player is home team, so top of 1st = pitching (away team bats)
+    expect(state.player_role).toBe('pitching')
+  })
+
+  it('visiting team bats first in every simulated game', () => {
+    for (let g = 0; g < 3; g++) {
+      const state = makeGameState()
+      const { snapshots } = simulateGame(state)
+      // First snapshot should be top of inning 1
+      const first = snapshots[0]
+      expect(first.inning).toBe(1)
+      expect(first.is_top).toBe(true)
+      // First half-inning transition should go from top to bottom (away batted first)
+      const firstTransition = snapshots.find((s, i) =>
+        i > 0 && (s.inning !== snapshots[i - 1].inning || s.is_top !== snapshots[i - 1].is_top)
+      )
+      expect(firstTransition.inning).toBe(1)
+      expect(firstTransition.is_top).toBe(false)
+    }
+  })
+})

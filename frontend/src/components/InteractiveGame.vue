@@ -513,7 +513,7 @@
       This includes: sound toggle, game-over overlay, scoreboard, field layout
       (diamond + player headshots), last play banner, controls, and play log.
     -->
-    <div v-if="game" :class="{ 'called-shot-bg': isCalledShot }">
+    <div v-if="game" class="game-container" :class="{ 'called-shot-bg': isCalledShot }">
 
       <!--
         Game Over Overlay — a semi-transparent dark overlay that covers
@@ -4863,6 +4863,20 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 /* ========== Mobile Responsive ========== */
 @media (max-width: 600px) {
+  .venue-label {
+    display: none;
+  }
+
+  .game-container {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .game-container .controls,
+  .game-container .sim-controls {
+    order: -1;
+  }
+
   /* Tighter padding on wizard screens */
   .start-screen {
     padding: 16px 10px;

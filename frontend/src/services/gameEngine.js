@@ -1204,6 +1204,55 @@ export function attemptPickoff(state, baseIdx, leadoff) {
   return state
 }
 
+/** Probability a runner takes an aggressive lead on any given pitch. */
+const SIM_LEADOFF_RATE = 0.20
+
+/** Probability the pitcher throws over when a runner is leading. */
+const SIM_THROW_OVER_RATE = 0.15
+
+/**
+ * In simulation mode, runners may take aggressive leads off base.
+ * If a runner leads off, the pitcher may throw over for a pickoff attempt
+ * (using the higher PICKOFF_LEADOFF_RATE). Called once per pitch.
+ */
+function _maybeSimLeadoff(state) {
+  const box = state.is_top ? state.away_box_score : state.home_box_score
+  // Check each base (prefer furthest runner — 3rd, 2nd, 1st)
+  for (let b = 2; b >= 0; b--) {
+    if (!state.bases[b]) continue
+    if (Math.random() >= SIM_LEADOFF_RATE) continue
+
+    const runnerIdx = state.runner_indices[b]
+    const runnerName = (box && runnerIdx != null) ? box[runnerIdx]?.name || 'Runner' : 'Runner'
+    const baseLabel = b === 0 ? '1st' : b === 1 ? '2nd' : '3rd'
+    const leadMsg = `${runnerName} takes a lead off ${baseLabel}`
+    state.play_log.push(leadMsg)
+    state.last_play = leadMsg
+
+    // Pitcher may throw over
+    if (Math.random() < SIM_THROW_OVER_RATE) {
+      if (state.is_top) state.home_pitch_count += 1
+      else state.away_pitch_count += 1
+
+      if (Math.random() < PICKOFF_LEADOFF_RATE) {
+        state.bases[b] = false
+        state.runner_indices[b] = null
+        state.outs += 1
+        const msg = `Throw to ${baseLabel} — ${runnerName} picked off!`
+        state.play_log.push(msg)
+        state.last_play = msg
+        if (state.outs >= 3) _endHalfInning(state)
+      } else {
+        const msg = `Throw to ${baseLabel} — ${runnerName} is safe!`
+        state.play_log.push(msg)
+        state.last_play = msg
+      }
+    }
+    // Only one leadoff event per pitch
+    return
+  }
+}
+
 /**
  * In simulation mode, roll the dice to see if the CPU attempts a steal.
  * Called once per plate appearance. Priority: steal home (very rare) > steal 2nd > steal 3rd.
@@ -1365,6 +1414,8 @@ export function simulateGame(state) {
 
     if (state.player_role === 'pitching') {
       _maybeSwapPitcher(state, pSide)
+      _maybeSimLeadoff(state)
+      if (state.outs >= 3) { snapshots.push(_snapshot(state)); continue }
       _maybeSimSteal(state)
       if (state.outs >= 3) { snapshots.push(_snapshot(state)); continue }
       const batter = _getCurrentBatter(state)
@@ -1384,6 +1435,8 @@ export function simulateGame(state) {
       _applyOutcome(state, outcome, msg)
     } else {
       _maybeSwapPitcher(state, cpuSide)
+      _maybeSimLeadoff(state)
+      if (state.outs >= 3) { snapshots.push(_snapshot(state)); continue }
       _maybeSimSteal(state)
       if (state.outs >= 3) { snapshots.push(_snapshot(state)); continue }
       const batter = _getCurrentBatter(state)

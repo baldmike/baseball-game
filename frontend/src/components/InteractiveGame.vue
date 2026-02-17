@@ -513,7 +513,7 @@
       This includes: sound toggle, game-over overlay, scoreboard, field layout
       (diamond + player headshots), last play banner, controls, and play log.
     -->
-    <div v-if="game" :class="{ 'called-shot-bg': isCalledShot }">
+    <div v-if="game" class="game-wrapper" :class="{ 'called-shot-bg': isCalledShot }">
 
       <!--
         Game Over Overlay — a semi-transparent dark overlay that covers
@@ -4823,6 +4823,17 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
     padding: 30px 10px;
   }
 
+  /* Flex column on game wrapper so we can reorder sections */
+  .game-wrapper {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Move controls just below scoreboard */
+  .controls {
+    order: -1;
+  }
+
   /* Stack field layout vertically: pitcher on top, diamond, batter below */
   .field-layout {
     flex-direction: column;
@@ -4836,6 +4847,11 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
     width: auto;
     min-height: auto;
     gap: 8px;
+  }
+
+  /* Space above the player card below the diamond */
+  .field-layout .player-card:last-child {
+    margin-top: 12px;
   }
 
   .player-headshot {

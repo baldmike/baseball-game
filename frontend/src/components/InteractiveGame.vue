@@ -3210,6 +3210,12 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 .start-screen {
   text-align: center;
   padding: 40px 20px;
+  animation: fadeIn 0.35s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Heading within wizard steps */

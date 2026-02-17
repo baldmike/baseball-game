@@ -235,11 +235,11 @@
     -->
     <div v-if="!game && setupStep === 3" class="start-screen">
       <div class="step-header">
-        <h2 class="season-hero-title">Pick your opponent</h2>
+        <h3 class="step-label">Pick your opponent</h3>
       </div>
       <!-- PREMIUM GATE: Opponent season — premium users get era selector,
            free users are locked to the same season as their home team -->
-      <div v-if="premiumUnlocked" class="season-hero" style="padding: 12px 20px 16px;">
+      <div v-if="premiumUnlocked" class="season-hero">
         <div class="era-grid">
           <div v-for="era in availableEras" :key="era.label" class="era-card"
                :class="{ selected: selectedAwayEra.label === era.label }">
@@ -258,7 +258,7 @@
         </div>
         <span v-if="loadingAwayTeams" class="season-hero-loading">Loading teams...</span>
       </div>
-      <div v-else style="margin-bottom: 16px; text-align: center;">
+      <div v-else style="margin-bottom: 4px; text-align: center;">
         <span style="color: #ccc; font-size: 15px;">{{ selectedSeason }}</span>
         <span v-if="loadingAwayTeams" style="color: #888; margin-left: 12px; font-size: 13px;">Loading teams...</span>
       </div>
@@ -2863,27 +2863,43 @@ watch(
         if (endedInning >= 1) {
           const ordinal = _ordinal(endedInning)
           const nextOrdinal = _ordinal(comingInning)
-          inningBannerData.value = {
-            endedHalf,
-            endedInning: ordinal,
-            comingHalf,
-            comingInning: nextOrdinal,
-            awayAbbr: game.value.away_abbreviation || 'AWAY',
-            homeAbbr: game.value.home_abbreviation || 'HOME',
-            awayTotal: game.value.away_total,
-            homeTotal: game.value.home_total,
+
+          // Show the last play result in the outcome box for 2 seconds
+          // before showing the inning transition overlay.
+          // Rewind the play log index to the play before this transition message.
+          const log = game.value.play_log || []
+          const transIdx = log.length - 1
+          if (transIdx > 0) {
+            playLogIndex.value = transIdx - 1
           }
-          inningBannerExiting.value = false
-          inningBannerActive.value = true
 
           clearTimeout(inningBannerTimer)
           inningBannerTimer = setTimeout(() => {
-            inningBannerExiting.value = true
-            setTimeout(() => {
-              inningBannerActive.value = false
-              inningBannerExiting.value = false
-            }, 500)
-          }, 3000)
+            // Restore play log to latest entry
+            playLogIndex.value = (game.value.play_log || []).length - 1
+
+            inningBannerData.value = {
+              endedHalf,
+              endedInning: ordinal,
+              comingHalf,
+              comingInning: nextOrdinal,
+              awayAbbr: game.value.away_abbreviation || 'AWAY',
+              homeAbbr: game.value.home_abbreviation || 'HOME',
+              awayTotal: game.value.away_total,
+              homeTotal: game.value.home_total,
+            }
+            inningBannerExiting.value = false
+            inningBannerActive.value = true
+
+            clearTimeout(inningBannerTimer)
+            inningBannerTimer = setTimeout(() => {
+              inningBannerExiting.value = true
+              setTimeout(() => {
+                inningBannerActive.value = false
+                inningBannerExiting.value = false
+              }, 500)
+            }, 2400)
+          }, 2000)
         }
       }
     }
@@ -3044,7 +3060,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 /* ========== Mode Picker ========== */
 .mode-picker {
   text-align: center;
-  padding: 80px 20px;
+  padding: 40px 20px;
   background: linear-gradient(rgba(15, 15, 35, 0.82), rgba(26, 26, 46, 0.92)), url('/baseball-bg.jpg') center/cover no-repeat;
   border-radius: 10px;
   min-height: 80vh;
@@ -3072,8 +3088,8 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 24px 16px;
+  gap: 6px;
+  padding: 16px 16px;
   background: #0f0f23;
   border: 1px solid #333;
   border-radius: 8px;
@@ -3108,8 +3124,8 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   color: #888;
   font-size: 14px;
   cursor: pointer;
-  padding: 8px 0;
-  margin-bottom: 8px;
+  padding: 4px 0;
+  margin-bottom: 2px;
   font-family: 'Courier New', monospace;
 }
 
@@ -3120,23 +3136,23 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 /* ========== Season Hero ========== */
 .season-hero {
   text-align: center;
-  padding: 28px 20px 20px;
-  margin-bottom: 12px;
+  padding: 6px 20px 4px;
+  margin-bottom: 2px;
   background: linear-gradient(180deg, #1a1a2e 0%, transparent 100%);
   border-bottom: 1px solid #333;
 }
 
 .season-hero-title {
-  font-size: 28px;
+  font-size: 18px;
   color: #e94560;
-  margin: 0 0 4px 0;
+  margin: 0 0 2px 0;
   letter-spacing: 1px;
 }
 
 .season-hero-sub {
   font-size: 14px;
   color: #aaa;
-  margin: 0 0 16px 0;
+  margin: 0 0 4px 0;
 }
 
 .season-hero-loading {
@@ -3148,27 +3164,27 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 .selected-year-label {
   text-align: center;
-  font-size: 28px;
+  font-size: 18px;
   font-weight: bold;
   color: #e94560;
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   letter-spacing: 1px;
 }
 
 .era-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 4px;
   max-width: 640px;
-  margin: 0 auto 4px;
+  margin: 0 auto 2px;
 }
 
 .era-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 10px 4px;
+  gap: 2px;
+  padding: 6px 4px;
   background: #1a1a2e;
   border: 2px solid #333;
   border-radius: 8px;
@@ -3212,7 +3228,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
    Generous padding creates visual breathing room for the form elements. */
 .start-screen {
   text-align: center;
-  padding: 40px 20px;
+  padding: 20px 20px;
   animation: fadeIn 0.35s ease-out;
 }
 
@@ -3231,7 +3247,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 /* Instructional text within wizard steps */
 .start-screen p {
   color: #aaa;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 /* ========== Step Header (Back button + Step Label) ========== */
@@ -3241,7 +3257,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   align-items: center;
   justify-content: center;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 /* Step label text (e.g., "Your Team: Yankees") — yellow for emphasis */
@@ -3284,7 +3300,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 /* Spacing between AL and NL sections in the opponent grid */
 .opponent-league-section {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 /* League header for opponent sections (same style as TeamSelector) */
@@ -3293,7 +3309,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 2px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid #333;
 }
@@ -3301,16 +3317,16 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 /* Responsive grid for opponent team cards */
 .opponent-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 4px;
 }
 
 /* Individual opponent team card — same visual style as TeamSelector cards */
 .opponent-card {
   background: #ffffff;
   border: 2px solid #ddd;
-  border-radius: 8px;
-  padding: 14px 8px;
+  border-radius: 6px;
+  padding: 6px 4px;
   cursor: pointer;
   transition: all 0.2s;
   text-align: center;
@@ -3331,25 +3347,25 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 /* Opponent team abbreviation — yellow monospace to match team card style */
 .opponent-logo {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .opponent-abbr {
-  font-size: 22px;
+  font-size: 15px;
   font-weight: bold;
   color: #e94560;
   font-family: 'Courier New', monospace;
-  margin-bottom: 4px;
+  margin-bottom: 1px;
 }
 
 /* Opponent team full name */
 .opponent-name {
-  font-size: 12px;
+  font-size: 11px;
   color: #555;
-  line-height: 1.2;
+  line-height: 1.1;
 }
 
 /* ========== Pitcher Selection (Steps 3 & 6) ========== */
@@ -3357,12 +3373,12 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 .pitcher-loading {
   color: #888;
   text-align: center;
-  margin: 20px 0;
+  margin: 10px 0;
 }
 
 /* Container for the pitcher list with bottom margin before the Next button */
 .pitcher-selection {
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 /* Scrollable vertical list of pitcher buttons */
@@ -3815,7 +3831,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 /* ========== Interactive Controls (Pitch/Bat Buttons) ========== */
 /* Container with vertical margin around the control buttons */
 .controls {
-  margin: 16px 0;
+  margin: 8px 0;
 }
 
 /* Instructional label above the control buttons (e.g., "You're Pitching") */
@@ -3823,7 +3839,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   text-align: center;
   font-size: 14px;
   color: #aaa;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -4090,7 +4106,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   color: #e94560;
   font-family: 'Courier New', monospace;
   letter-spacing: 1px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .classic-label {
@@ -4222,7 +4238,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
-  margin-top: 32px;
+  margin-top: 16px;
 }
 
 /*
@@ -4243,7 +4259,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
 /* Margin around the simulation speed controls during replay */
 .sim-controls {
-  margin: 16px 0;
+  margin: 8px 0;
 }
 
 /* Tape deck transport controls */
@@ -4351,8 +4367,8 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 /* Container for the classic matchups grid on step 1.
    Top border separates it from the team selector above. */
 .classic-matchups {
-  margin-top: 24px;
-  padding: 20px 16px;
+  margin-top: 12px;
+  padding: 12px 16px;
   border-top: 1px solid #333;
 }
 
@@ -4821,7 +4837,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 @media (max-width: 600px) {
   /* Tighter padding on wizard screens */
   .start-screen {
-    padding: 30px 10px;
+    padding: 16px 10px;
   }
 
   /* Stack field layout vertically: pitcher on top, diamond, batter below */
@@ -4886,12 +4902,12 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
   /* Opponent grid: fewer columns on small screens */
   .opponent-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 4px;
   }
 
   .opponent-card {
-    padding: 8px 4px;
+    padding: 4px 2px;
   }
 
   /* Matchup grid: single column on small screens */
@@ -4928,12 +4944,12 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 32px auto 40px;
+  margin: 16px auto 16px;
   padding: 0 16px;
 }
 
 .weather-selection p {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   font-weight: bold;
   color: #ccc;
   font-size: 15px;
@@ -4942,13 +4958,13 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 .weather-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 8px;
   max-width: 640px;
   width: 100%;
 }
 
 .weather-grid + .weather-grid {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .weather-grid.tod-grid {
@@ -4959,8 +4975,8 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 14px 8px;
+  gap: 4px;
+  padding: 10px 8px;
   background: #1a1a2e;
   border: 2px solid #333;
   border-radius: 8px;
@@ -5063,7 +5079,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 }
 
 .venue-selection p {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   font-weight: bold;
   color: #ccc;
   font-size: 15px;
@@ -5072,7 +5088,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 .venue-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 8px;
   max-width: 640px;
   width: 100%;
 }
@@ -5081,8 +5097,8 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 14px 8px;
+  gap: 4px;
+  padding: 10px 8px;
   background: #1a1a2e;
   border: 2px solid #333;
   border-radius: 8px;
@@ -5125,7 +5141,7 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   font-size: 13px;
   color: #999;
   font-family: 'Courier New', monospace;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 /* ========== Weather Banner (Active Game) ========== */
@@ -5134,10 +5150,10 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 4px 12px;
+  padding: 2px 12px;
   background: #1a1a2e;
   border-radius: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   font-size: 13px;
   color: #ccc;
 }

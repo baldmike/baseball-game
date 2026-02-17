@@ -261,8 +261,8 @@ const gridStyle = computed(() => ({
   background: #0f0f23;
   border: 2px solid #e94560;
   border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 16px;
+  padding: 8px;
+  margin-bottom: 8px;
 }
 
 /* ========== Score Grid ========== */
@@ -351,8 +351,8 @@ const gridStyle = computed(() => ({
 .game-info {
   display: flex;
   justify-content: space-around;
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid #333;
 }
 

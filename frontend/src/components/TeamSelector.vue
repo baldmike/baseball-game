@@ -99,20 +99,20 @@ onMounted(async () => {
 /* Centers all content and adds vertical padding around the team picker */
 .team-selector {
   text-align: center;
-  padding: 20px 0;
+  padding: 4px 0;
 }
 
 /* Main heading styled in the app's accent red color */
 .team-selector h2 {
   color: #e94560;
-  font-size: 28px;
-  margin-bottom: 8px;
+  font-size: 16px;
+  margin-bottom: 4px;
 }
 
 /* Subdued subtitle text below the heading */
 .subtitle {
   color: #888;
-  margin-bottom: 24px;
+  margin-bottom: 6px;
   font-size: 14px;
 }
 
@@ -130,7 +130,7 @@ onMounted(async () => {
 
 /* Spacing between league groups (e.g., gap between AL and NL sections) */
 .league-section {
-  margin-bottom: 20px;
+  margin-bottom: 8px;
 }
 
 /*
@@ -143,8 +143,8 @@ onMounted(async () => {
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 2px;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
   border-bottom: 1px solid #333;
 }
 
@@ -156,8 +156,8 @@ onMounted(async () => {
 */
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 4px;
 }
 
 /*
@@ -167,8 +167,8 @@ onMounted(async () => {
 .team-card {
   background: #ffffff;
   border: 2px solid #ddd;
-  border-radius: 8px;
-  padding: 14px 8px;
+  border-radius: 6px;
+  padding: 6px 4px;
   cursor: pointer;
   transition: all 0.2s;
   text-align: center;
@@ -189,25 +189,25 @@ onMounted(async () => {
   to mimic a scoreboard font. Yellow color makes it pop against the dark card.
 */
 .team-logo {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .team-abbr {
-  font-size: 22px;
+  font-size: 15px;
   font-weight: bold;
   color: #e94560;
   font-family: 'Courier New', monospace;
-  margin-bottom: 4px;
+  margin-bottom: 1px;
 }
 
 /* Full team name displayed small and gray below the abbreviation */
 .team-name {
-  font-size: 12px;
+  font-size: 11px;
   color: #555;
-  line-height: 1.2;
+  line-height: 1.1;
 }
 
 /* ========== Loading & Error States ========== */

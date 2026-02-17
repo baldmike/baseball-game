@@ -83,6 +83,7 @@ function _emptyState() {
     home_errors: 0,
 
     // --- Game flow ---
+    player_side: 'home',       // 'home' or 'away' — which team the player controls
     player_role: 'pitching',   // 'pitching' (top of inning) or 'batting' (bottom)
     game_status: 'active',     // 'active' or 'final'
 
@@ -315,7 +316,9 @@ function _endGame(state) {
   state.game_status = 'final'
   const homeName = state.home_team || 'Home'
   const awayName = state.away_team || 'Away'
-  const winner = state.home_total > state.away_total ? 'You win!' : 'You lose!'
+  const playerTotal = state.player_side === 'home' ? state.home_total : state.away_total
+  const opponentTotal = state.player_side === 'home' ? state.away_total : state.home_total
+  const winner = playerTotal > opponentTotal ? 'You win!' : 'You lose!'
   const msg = `Game Over! Final: ${homeName} ${state.home_total} - ${awayName} ${state.away_total}. ${winner}`
   state.play_log.push(msg)
   state.last_play = msg
@@ -334,7 +337,7 @@ function _endHalfInning(state) {
 
   if (state.is_top) {
     state.is_top = false
-    state.player_role = 'batting'
+    state.player_role = (state.player_side === 'home') ? 'batting' : 'pitching'
     const half = `Bottom of inning ${state.inning}`
     if (state.inning >= TOTAL_INNINGS && state.home_total > state.away_total) {
       _endGame(state)
@@ -347,7 +350,7 @@ function _endHalfInning(state) {
   } else {
     state.inning += 1
     state.is_top = true
-    state.player_role = 'pitching'
+    state.player_role = (state.player_side === 'home') ? 'pitching' : 'batting'
     const half = `Top of inning ${state.inning}`
     if (state.inning > TOTAL_INNINGS && state.home_total !== state.away_total) {
       _endGame(state)
@@ -637,6 +640,7 @@ function _snapshot(state) {
     home_hits: state.home_hits,
     away_errors: state.away_errors,
     home_errors: state.home_errors,
+    player_side: state.player_side,
     player_role: state.player_role,
     game_status: state.game_status,
     last_play: state.last_play,
@@ -726,12 +730,16 @@ export async function createNewGame({
   weather = null,
   timeOfDay = null,
   classicRelievers = null,
+  playerSide = 'home',
 } = {}) {
   const state = _emptyState()
   state.game_id = crypto.randomUUID()
   state.weather = weather || 'clear'
   state.time_of_day = timeOfDay || null
   state.classic_relievers = classicRelievers
+  state.player_side = playerSide
+  // Set initial player_role based on side: home pitches first (top), away bats first (top)
+  state.player_role = playerSide === 'home' ? 'pitching' : 'batting'
 
   if (homeTeamId) {
     try {
@@ -829,7 +837,9 @@ export async function createNewGame({
         const weatherStr = weatherInfo ? ` Conditions: ${weatherInfo.label} (${weatherInfo.temp})` : ''
         const todInfo = state.time_of_day ? TIME_OF_DAY[state.time_of_day] : null
         const todStr = todInfo ? ` ${todInfo.icon} ${todInfo.label}` : ''
-        const msg = `Play Ball! You're the ${homeTeam.name} vs the ${opponent.name}!${weatherStr}${todStr}`
+        const playerTeam = playerSide === 'home' ? homeTeam.name : opponent.name
+        const cpuTeam = playerSide === 'home' ? opponent.name : homeTeam.name
+        const msg = `Play Ball! You're the ${playerTeam} vs the ${cpuTeam}!${weatherStr}${todStr}`
         state.play_log.push(msg)
         state.last_play = msg
         return state
@@ -839,8 +849,9 @@ export async function createNewGame({
     }
   }
 
-  state.play_log.push("Play Ball! You're the home team.")
-  state.last_play = "Play Ball! You're the home team."
+  const sideLabel = playerSide === 'home' ? 'home' : 'away'
+  state.play_log.push(`Play Ball! You're the ${sideLabel} team.`)
+  state.last_play = `Play Ball! You're the ${sideLabel} team.`
   return state
 }
 
@@ -855,11 +866,12 @@ export function processPitch(state, pitchType) {
   const batter = _getCurrentBatter(state)
   const playerStats = batter?.activeStats || batter?.stats || null
   const batterName = batter?.name || 'Batter'
-  const pitcher = state.home_pitcher
+  const side = state.player_side || 'home'
+  const pitcher = state[side + '_pitcher']
   const pitcherStats = pitcher?.activeStats || pitcher?.stats || null
 
   const swings = cpuDecidesSwing()
-  let outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.home_pitch_count, state.time_of_day)
+  let outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state[side + '_pitch_count'], state.time_of_day)
   if (state._outcomeFilter) outcome = state._outcomeFilter(state, outcome)
   const actionStr = swings ? 'swings' : 'takes'
   const msg = `You throw a ${pitchType}. ${batterName} ${actionStr}: ${_formatOutcome(outcome)}!`
@@ -876,13 +888,14 @@ export function processAtBat(state, action) {
   }
 
   // CPU auto-replaces its pitcher when fatigued
-  if (state.away_pitch_count >= 100 && state.away_bullpen.length > 0) {
-    switchPitcher(state, 'away', state.away_bullpen.shift())
+  const cpuSide = (state.player_side || 'home') === 'home' ? 'away' : 'home'
+  if (state[cpuSide + '_pitch_count'] >= 100 && state[cpuSide + '_bullpen'].length > 0) {
+    switchPitcher(state, cpuSide, state[cpuSide + '_bullpen'].shift())
   }
 
   const batter = _getCurrentBatter(state)
   const playerStats = batter?.activeStats || batter?.stats || null
-  const pitcher = state.away_pitcher
+  const pitcher = state[cpuSide + '_pitcher']
   const pitcherStats = pitcher?.activeStats || pitcher?.stats || null
 
   // CPU pitcher selects a pitch type (fastball, slider, curveball, changeup)
@@ -898,9 +911,10 @@ export function processAtBat(state, action) {
     outcome = weightedChoice(BUNT_OUTCOMES)
   } else {
     const swings = action === 'swing'
-    outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count, state.time_of_day)
+    outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state[cpuSide + '_pitch_count'], state.time_of_day)
   }
 
+  if (state._outcomeFilter) outcome = state._outcomeFilter(state, outcome)
   // Flag bunt action so _applyOutcome can enforce bunt-foul strikeout rule
   state._lastActionWasBunt = action === 'bunt'
   const actionStr = action === 'bunt' ? 'bunt' : (action === 'swing' ? 'swing' : 'take')
@@ -1158,39 +1172,43 @@ export function simulateGame(state) {
     // Pre-pitch hook for forced outcomes
     if (state._prePitchHook) state._prePitchHook(state)
 
+    const pSide = state.player_side || 'home'
+    const cpuSide = pSide === 'home' ? 'away' : 'home'
+
     if (state.player_role === 'pitching') {
-      _maybeSwapPitcher(state, 'home')
+      _maybeSwapPitcher(state, pSide)
       _maybeSimSteal(state)
       if (state.outs >= 3) { snapshots.push(_snapshot(state)); continue }
       const batter = _getCurrentBatter(state)
       const playerStats = batter?.activeStats || batter?.stats || null
       const batterName = batter?.name || 'Batter'
-      const pitcher = state.home_pitcher
+      const pitcher = state[pSide + '_pitcher']
       const pitcherStats = pitcher?.activeStats || pitcher?.stats || null
 
       const pitchType = cpuPicksPitch()
       const swings = cpuDecidesSwing()
       let outcome
       if (state._forceNextOutcome) { outcome = state._forceNextOutcome; state._forceNextOutcome = null }
-      else { outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.home_pitch_count, state.time_of_day) }
+      else { outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state[pSide + '_pitch_count'], state.time_of_day) }
       if (state._outcomeFilter) outcome = state._outcomeFilter(state, outcome)
       const actionStr = swings ? 'swings' : 'takes'
       const msg = `You throw a ${pitchType}. ${batterName} ${actionStr}: ${_formatOutcome(outcome)}!`
       _applyOutcome(state, outcome, msg)
     } else {
-      _maybeSwapPitcher(state, 'away')
+      _maybeSwapPitcher(state, cpuSide)
       _maybeSimSteal(state)
       if (state.outs >= 3) { snapshots.push(_snapshot(state)); continue }
       const batter = _getCurrentBatter(state)
       const playerStats = batter?.activeStats || batter?.stats || null
-      const pitcher = state.away_pitcher
+      const pitcher = state[cpuSide + '_pitcher']
       const pitcherStats = pitcher?.activeStats || pitcher?.stats || null
 
       const pitchType = cpuPicksPitch()
       const swings = cpuDecidesSwing()
       let outcome
       if (state._forceNextOutcome) { outcome = state._forceNextOutcome; state._forceNextOutcome = null }
-      else { outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state.away_pitch_count, state.time_of_day) }
+      else { outcome = determineOutcome(pitchType, swings, playerStats, pitcherStats, state.weather, state[cpuSide + '_pitch_count'], state.time_of_day) }
+      if (state._outcomeFilter) outcome = state._outcomeFilter(state, outcome)
       const actionStr = swings ? 'swing' : 'take'
       const msg = `Pitcher throws a ${pitchType}. You ${actionStr}: ${_formatOutcome(outcome)}!`
       _applyOutcome(state, outcome, msg)

@@ -234,7 +234,7 @@ export async function getPlayerPitchingSplits(playerId, season = 2024, sportId =
 
 /** Fetch a player's pitching stats for a given season. */
 export async function getPlayerPitchingStats(playerId, season = 2024, sportId = 1) {
-  const defaults = { era: 4.30, k_per_9: 8.20, bb_per_9: 3.20, gamesStarted: 0, gamesPlayed: 0 }
+  const defaults = { era: 4.30, k_per_9: 8.20, bb_per_9: 3.20, gamesStarted: 0, gamesPlayed: 0, saves: 0 }
   try {
     const data = await mlbFetch(
       `/api/v1/people/${playerId}/stats?stats=season&group=pitching&season=${season}&sportId=${sportId}`
@@ -250,6 +250,7 @@ export async function getPlayerPitchingStats(playerId, season = 2024, sportId = 
         bb_per_9: parseFloat(s.walksPer9Inn || defaults.bb_per_9),
         gamesStarted: parseInt(s.gamesStarted || '0', 10),
         gamesPlayed: parseInt(s.gamesPlayed || '0', 10),
+        saves: parseInt(s.saves || '0', 10),
       }
     }
   } catch { /* fall through */ }
@@ -385,6 +386,7 @@ export async function getTeamPitchers(teamId, season = 2024) {
         id: person.id,
         name: person.fullName || 'Unknown',
         position: position.abbreviation || 'P',
+        positionName: position.name || '',
         stats: null, // filled below
       })
     }
@@ -404,11 +406,26 @@ export async function getTeamPitchers(teamId, season = 2024) {
       }
     }))
 
-    // Classify each pitcher as SP or RP based on games started ratio
+    // Classify each pitcher's role based on roster position, stats, and games started
     for (const p of pitchers) {
       const gs = p.stats.gamesStarted || 0
       const g = p.stats.gamesPlayed || 0
-      p.role = (g > 0 && gs / g >= 0.5) ? 'SP' : 'RP'
+      const saves = p.stats.saves || 0
+      const posName = p.positionName || ''
+
+      if (g > 0 && gs / g >= 0.5) {
+        p.role = 'SP'
+      } else if (posName === 'Middle Reliever') {
+        p.role = 'MR'
+      } else if (posName === 'Long Reliever') {
+        p.role = 'LR'
+      } else if (posName === 'Setup Man') {
+        p.role = 'SU'
+      } else if (posName === 'Closer' || saves >= 5) {
+        p.role = 'CL'
+      } else {
+        p.role = 'RP'
+      }
     }
 
     pitchers.sort((a, b) => (a.stats.era ?? 99) - (b.stats.era ?? 99))

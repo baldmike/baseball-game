@@ -37,6 +37,12 @@ function mountPremiumGame() {
 }
 
 describe('Free vs Premium — Season Picker', () => {
+  it('defaults to the most recent season (2025)', () => {
+    const wrapper = mountGame()
+    expect(wrapper.vm.selectedSeason).toBe(2025)
+    expect(wrapper.vm.selectedAwaySeason).toBe(2025)
+  })
+
   it('free user sees seasons from 2025 down to 2000 only (26 options)', async () => {
     const wrapper = mountGame()
     wrapper.vm.gameMode = 'season'
@@ -178,7 +184,7 @@ describe('Free vs Premium — Time of Day Picker (Step 5)', () => {
 
     // The time-of-day section is only rendered for premium users
     const weatherSections = wrapper.findAll('.weather-selection')
-    // There should be exactly 1 weather-selection (the weather one), not 2
+    // There should be exactly 1 weather-selection (weather only), not 2
     expect(weatherSections.length).toBe(1)
   })
 
@@ -187,7 +193,7 @@ describe('Free vs Premium — Time of Day Picker (Step 5)', () => {
     await goToStep5(wrapper)
 
     const weatherSections = wrapper.findAll('.weather-selection')
-    // Should be 2: one for weather, one for time-of-day
+    // Should be 2: weather and time-of-day
     expect(weatherSections.length).toBe(2)
 
     const todSection = weatherSections[1]
@@ -205,5 +211,107 @@ describe('Free vs Premium — Time of Day Picker (Step 5)', () => {
 
     await buttons[2].trigger('click')
     expect(wrapper.vm.selectedTimeOfDay).toBe('night')
+  })
+})
+
+describe('Play as Home/Away (Step 5)', () => {
+  async function goToStep5(wrapper) {
+    wrapper.vm.gameMode = 'season'
+    wrapper.vm.setupStep = 5
+    await wrapper.vm.$nextTick()
+  }
+
+  it('step 5 shows the Play as venue-selection with 2 cards', async () => {
+    const wrapper = mountGame()
+    await goToStep5(wrapper)
+
+    const venueSections = wrapper.findAll('.venue-selection')
+    expect(venueSections.length).toBe(1)
+    const cards = venueSections[0].findAll('.venue-card')
+    expect(cards.length).toBe(2)
+  })
+
+  it('playerSide defaults to home', async () => {
+    const wrapper = mountGame()
+    await goToStep5(wrapper)
+    expect(wrapper.vm.playerSide).toBe('home')
+  })
+
+  it('clicking away card sets playerSide to away', async () => {
+    const wrapper = mountGame()
+    await goToStep5(wrapper)
+
+    const cards = wrapper.findAll('.venue-card')
+    await cards[1].trigger('click')
+    expect(wrapper.vm.playerSide).toBe('away')
+  })
+
+  it('clicking home card sets playerSide back to home', async () => {
+    const wrapper = mountGame()
+    await goToStep5(wrapper)
+
+    wrapper.vm.playerSide = 'away'
+    await wrapper.vm.$nextTick()
+    const cards = wrapper.findAll('.venue-card')
+    await cards[0].trigger('click')
+    expect(wrapper.vm.playerSide).toBe('home')
+  })
+
+  it('resolvedHomeTeamId swaps when player picks away', async () => {
+    const wrapper = mountGame()
+    wrapper.vm.teamSelected = 147
+    wrapper.vm.selectedOpponentId = 111
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.resolvedHomeTeamId).toBe(147)
+    expect(wrapper.vm.resolvedAwayTeamId).toBe(111)
+
+    wrapper.vm.playerSide = 'away'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.resolvedHomeTeamId).toBe(111)
+    expect(wrapper.vm.resolvedAwayTeamId).toBe(147)
+  })
+
+  it('resolvedSeasons swap when player picks away', async () => {
+    const wrapper = mountGame()
+    wrapper.vm.selectedSeason = 2024
+    wrapper.vm.selectedAwaySeason = 1927
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.resolvedHomeSeason).toBe(2024)
+    expect(wrapper.vm.resolvedAwaySeason).toBe(1927)
+
+    wrapper.vm.playerSide = 'away'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.resolvedHomeSeason).toBe(1927)
+    expect(wrapper.vm.resolvedAwaySeason).toBe(2024)
+  })
+
+  it('resolvedPitcherIds swap when player picks away', async () => {
+    const wrapper = mountGame()
+    wrapper.vm.selectedPitcherId = 100
+    wrapper.vm.selectedAwayPitcherId = 200
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.resolvedHomePitcherId).toBe(100)
+    expect(wrapper.vm.resolvedAwayPitcherId).toBe(200)
+
+    wrapper.vm.playerSide = 'away'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.resolvedHomePitcherId).toBe(200)
+    expect(wrapper.vm.resolvedAwayPitcherId).toBe(100)
+  })
+
+  it('resetGame resets playerSide to home', async () => {
+    const wrapper = mountGame()
+    wrapper.vm.playerSide = 'away'
+    await wrapper.vm.$nextTick()
+    expect(wrapper.vm.playerSide).toBe('away')
+
+    await wrapper.vm.resetGame()
+    expect(wrapper.vm.playerSide).toBe('home')
   })
 })

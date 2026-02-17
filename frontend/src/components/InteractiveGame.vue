@@ -202,9 +202,9 @@
             :key="p.id"
             class="pitcher-option"
             :class="{ selected: selectedPitcherId === p.id }"
-            @click="selectedPitcherId = p.id"
+            @click="selectedPitcherId = p.id; goToStep(3)"
           >
-            <span class="pitcher-opt-name">{{ p.name }}</span>
+            <span class="pitcher-opt-name">{{ p.name }} <span class="pitcher-role-tag">{{ p.role || 'P' }}</span></span>
             <span class="pitcher-opt-stats">ERA {{ p.stats.era.toFixed(2) }} | K/9 {{ p.stats.k_per_9.toFixed(1) }}</span>
           </button>
         </div>
@@ -212,9 +212,8 @@
 
       <div v-else-if="!loadingPitchers">
         <p>No pitchers found — one will be assigned automatically.</p>
+        <button class="play-btn" @click="goToStep(3)">Next</button>
       </div>
-
-      <button class="play-btn" @click="goToStep(3)" :disabled="loadingPitchers">Next</button>
     </div>
 
     <!--
@@ -246,7 +245,7 @@
               :key="team.id"
               class="opponent-card"
               :class="{ selected: selectedOpponentId === team.id }"
-              @click="selectedOpponentId = team.id"
+              @click="selectedOpponentId = team.id; goToStep(4)"
             >
               <img :src="teamLogoUrl(team.id)" :alt="team.name" class="opponent-logo" />
               <div class="opponent-abbr">{{ team.abbreviation }}</div>
@@ -255,7 +254,6 @@
           </div>
         </div>
       </div>
-      <button class="play-btn" @click="goToStep(4)" :disabled="!selectedOpponentId" style="margin-top: 20px">Next</button>
 
       <!-- PREMIUM GATE: Cross-season opponent selection upgrade CTA -->
       <div v-if="!premiumUnlocked" class="unlock-section">
@@ -312,7 +310,7 @@
               :class="{ selected: selectedPitcherId === p.id }"
               @click="selectedPitcherId = p.id"
             >
-              <span class="pitcher-opt-name">{{ p.name }}</span>
+              <span class="pitcher-opt-name">{{ p.name }} <span class="pitcher-role-tag">{{ p.role || 'P' }}</span></span>
               <span class="pitcher-opt-stats">ERA {{ p.stats.era.toFixed(2) }} | K/9 {{ p.stats.k_per_9.toFixed(1) }}</span>
             </button>
           </div>
@@ -327,9 +325,9 @@
               :key="p.id"
               class="pitcher-option"
               :class="{ selected: selectedAwayPitcherId === p.id }"
-              @click="selectedAwayPitcherId = p.id"
+              @click="selectedAwayPitcherId = p.id; goToStep(5)"
             >
-              <span class="pitcher-opt-name">{{ p.name }}</span>
+              <span class="pitcher-opt-name">{{ p.name }} <span class="pitcher-role-tag">{{ p.role || 'P' }}</span></span>
               <span class="pitcher-opt-stats">ERA {{ p.stats.era.toFixed(2) }} | K/9 {{ p.stats.k_per_9.toFixed(1) }}</span>
             </button>
           </div>
@@ -338,11 +336,10 @@
         <!-- Fallback when no pitchers are available for either team -->
         <div v-if="!awayStarterList.length && (!classicMode || !starterList.length)">
           <p>No pitchers found — they will be assigned automatically.</p>
+          <button class="play-btn" @click="goToStep(5)">Next</button>
         </div>
 
       </template>
-
-      <button class="play-btn" @click="goToStep(5)" :disabled="loadingPitchers || loadingAwayPitchers" style="margin-top: 20px">Next</button>
     </div>
 
     <!--
@@ -352,18 +349,20 @@
       For custom/fantasy games, defaults to "Clear Skies".
     -->
     <div v-if="!game && setupStep === 5" class="start-screen">
-      <div class="venue-selection" v-if="homeVenue || awayVenue">
-        <p>Choose the ballpark:</p>
+      <div class="venue-selection">
+        <p>Play as:</p>
         <div class="venue-grid">
-          <button class="venue-card" :class="{ selected: selectedVenue === homeVenue?.name }"
-                  @click="selectedVenue = homeVenue?.name" v-if="homeVenue">
-            <span class="venue-name">{{ homeVenue.name }}</span>
+          <button class="venue-card" :class="{ selected: playerSide === 'home' }"
+                  @click="playerSide = 'home'; selectedVenue = homeVenue?.name || ''">
+            <span class="venue-side-label">Home</span>
             <span class="venue-team">{{ homeTeamName }} ({{ selectedSeason }})</span>
+            <span class="venue-name" v-if="homeVenue">{{ homeVenue.name }}</span>
           </button>
-          <button class="venue-card" :class="{ selected: selectedVenue === awayVenue?.name }"
-                  @click="selectedVenue = awayVenue?.name" v-if="awayVenue && awayVenue.name !== homeVenue?.name">
-            <span class="venue-name">{{ awayVenue.name }}</span>
-            <span class="venue-team">{{ awayTeamName }} ({{ selectedAwaySeason }})</span>
+          <button class="venue-card" :class="{ selected: playerSide === 'away' }"
+                  @click="playerSide = 'away'; selectedVenue = awayVenue?.name || ''">
+            <span class="venue-side-label">Away</span>
+            <span class="venue-team">{{ homeTeamName }} ({{ selectedSeason }})</span>
+            <span class="venue-name" v-if="awayVenue">{{ awayVenue.name }}</span>
           </button>
         </div>
       </div>
@@ -458,16 +457,16 @@
           <h2>Game Over!</h2>
           <div class="final-score">
             <div class="final-team">
-              <span class="label">{{ game.away_abbreviation || 'AWAY' }}</span>
+              <span class="label">{{ game.away_abbreviation || 'AWAY' }}{{ !isPlayerHome ? ' (You)' : '' }}</span>
               <span class="score">{{ game.away_total }}</span>
             </div>
             <div class="vs">—</div>
             <div class="final-team">
-              <span class="label">{{ game.home_abbreviation || 'HOME' }} (You)</span>
+              <span class="label">{{ game.home_abbreviation || 'HOME' }}{{ isPlayerHome ? ' (You)' : '' }}</span>
               <span class="score">{{ game.home_total }}</span>
             </div>
           </div>
-          <p class="result-text">{{ game.home_total > game.away_total ? 'You Win!' : 'You Lose!' }}</p>
+          <p class="result-text">{{ game[myPrefix + '_total'] > game[theirPrefix + '_total'] ? 'You Win!' : 'You Lose!' }}</p>
           <div class="game-over-actions">
             <button class="play-btn" @click="showPostGame('boxscore')">Box Score</button>
             <button class="play-btn" @click="showPostGame('scorecard')">Scorecard</button>
@@ -545,7 +544,7 @@
       -->
       <div class="matchup-title">
         <span v-if="classicLabel" class="classic-label">{{ classicLabel }}</span>
-        {{ selectedAwaySeason }} {{ game.away_team || 'Away' }} @ {{ selectedSeason }} {{ game.home_team || 'Home' }}
+        {{ resolvedAwaySeason }} {{ game.away_team || 'Away' }} @ {{ resolvedHomeSeason }} {{ game.home_team || 'Home' }}
       </div>
       <div class="venue-label" v-if="selectedVenue">{{ selectedVenue }}</div>
 
@@ -566,8 +565,8 @@
         :away-team-name="game.away_abbreviation"
         :home-team-name="game.home_abbreviation"
         :current-batter-name="game.current_batter_name"
-        :away-team-id="selectedOpponentId || 0"
-        :home-team-id="teamSelected || 0"
+        :away-team-id="resolvedAwayTeamId || 0"
+        :home-team-id="resolvedHomeTeamId || 0"
       />
 
       <!-- Weather banner — shows the current weather condition during the game -->
@@ -595,7 +594,7 @@
               :alt="awayFieldPlayer.name"
               class="player-headshot"
             />
-            <img :src="teamLogoUrl(selectedOpponentId)" class="player-team-badge" />
+            <img :src="teamLogoUrl(resolvedAwayTeamId)" class="player-team-badge" />
           </div>
           <div class="player-card-info">
             <span class="player-card-label">{{ game.is_top ? 'AT BAT' : 'PITCHING' }}</span>
@@ -621,7 +620,7 @@
               :alt="homeFieldPlayer.name"
               class="player-headshot"
             />
-            <img :src="teamLogoUrl(teamSelected)" class="player-team-badge" />
+            <img :src="teamLogoUrl(resolvedHomeTeamId)" class="player-team-badge" />
           </div>
           <div class="player-card-info">
             <span class="player-card-label">{{ game.is_top ? 'PITCHING' : 'AT BAT' }}</span>
@@ -711,9 +710,9 @@
             <div class="bullpen-modal">
               <h3 class="bullpen-title">Bullpen</h3>
               <div class="bullpen-list">
-                <div v-for="p in game.home_bullpen" :key="p.id" class="bullpen-option">
+                <div v-for="p in game[myPrefix + '_bullpen']" :key="p.id" class="bullpen-option">
                   <div class="bullpen-info">
-                    <span class="bullpen-name">{{ p.name }}</span>
+                    <span class="bullpen-name">{{ p.name }} <span class="pitcher-role-tag">{{ p.role || 'RP' }}</span></span>
                     <span class="bullpen-stats" v-if="p.stats">ERA {{ p.stats.era.toFixed(2) }} | K/9 {{ p.stats.k_per_9.toFixed(1) }}</span>
                   </div>
                   <div v-if="warmingUp[p.id]" class="warmup-status">
@@ -782,7 +781,7 @@
         </div>
         <button v-if="lastSnapshot && showDoOver" class="action-btn doover-btn" @click="doOver()" :disabled="loading">Do Over!</button>
         <div class="bottom-controls-row">
-          <button v-if="game.player_role === 'pitching' && game.home_bullpen.length" class="action-btn bottom-ctrl-btn" @click="showBullpen = true" :disabled="loading">
+          <button v-if="game.player_role === 'pitching' && game[myPrefix + '_bullpen'].length" class="action-btn bottom-ctrl-btn" @click="showBullpen = true" :disabled="loading">
             Change Pitcher ({{ currentPitchCount }})
           </button>
           <button class="action-btn bottom-ctrl-btn" @click="simulateRest()" :disabled="loading">Simulate Rest of Game</button>
@@ -1042,6 +1041,25 @@ const loading = ref(false)
 const showScorecard = ref(false)
 const gameOverDismissed = ref(false)
 const gameMode = ref(null)
+
+/** Which side the player controls — 'home' or 'away'. */
+const playerSide = ref('home')
+const isPlayerHome = computed(() => playerSide.value === 'home')
+const myPrefix = computed(() => isPlayerHome.value ? 'home' : 'away')
+const theirPrefix = computed(() => isPlayerHome.value ? 'away' : 'home')
+
+/**
+ * Resolved game-time team IDs, seasons, and pitcher IDs.
+ * When the player picks "away", the teams swap: the player's team becomes the away
+ * team and the opponent becomes the home team. These computed properties handle
+ * the mapping so startGame/startSimulation always pass correct home/away values.
+ */
+const resolvedHomeTeamId = computed(() => isPlayerHome.value ? teamSelected.value : selectedOpponentId.value)
+const resolvedAwayTeamId = computed(() => isPlayerHome.value ? selectedOpponentId.value : teamSelected.value)
+const resolvedHomeSeason = computed(() => isPlayerHome.value ? selectedSeason.value : selectedAwaySeason.value)
+const resolvedAwaySeason = computed(() => isPlayerHome.value ? selectedAwaySeason.value : selectedSeason.value)
+const resolvedHomePitcherId = computed(() => isPlayerHome.value ? selectedPitcherId.value : selectedAwayPitcherId.value)
+const resolvedAwayPitcherId = computed(() => isPlayerHome.value ? selectedAwayPitcherId.value : selectedPitcherId.value)
 
 /** Index into play_log for the outcome banner. Tracks the latest entry by default. */
 const playLogIndex = ref(0)
@@ -1950,6 +1968,8 @@ function _applyEllisNoHitter(state) {
   const outReplacements = ['groundout', 'flyout', 'lineout', 'groundout', 'flyout']
   state._outcomeFilter = (st, outcome) => {
     if (!hitTypes.has(outcome)) return outcome
+    // Only suppress hits when Ellis is pitching (top of inning = away team at bat)
+    if (!st.is_top) return outcome
     // Through 7 innings: almost unhittable (5% chance a hit sneaks through)
     if (st.inning <= 7) {
       return Math.random() < 0.05 ? outcome : outReplacements[Math.floor(Math.random() * outReplacements.length)]
@@ -1967,14 +1987,15 @@ async function startGame() {
   loading.value = true
   try {
     const newGame = await createNewGame({
-      homeTeamId: teamSelected.value,
-      season: selectedSeason.value,
-      homePitcherId: selectedPitcherId.value,
-      awayTeamId: selectedOpponentId.value,
-      awaySeason: selectedAwaySeason.value,
-      awayPitcherId: selectedAwayPitcherId.value,
+      homeTeamId: resolvedHomeTeamId.value,
+      season: resolvedHomeSeason.value,
+      homePitcherId: resolvedHomePitcherId.value,
+      awayTeamId: resolvedAwayTeamId.value,
+      awaySeason: resolvedAwaySeason.value,
+      awayPitcherId: resolvedAwayPitcherId.value,
       weather: selectedWeather.value,
       timeOfDay: selectedTimeOfDay.value,
+      playerSide: playerSide.value,
     })
     if (isDockEllis.value) _applyEllisNoHitter(newGame)
     await _ellistMeltTransition(() => { game.value = newGame })
@@ -2033,15 +2054,16 @@ async function startSimulation() {
   try {
     // Step 1: Create the game with the configured teams/pitchers
     const newGame = await createNewGame({
-      homeTeamId: teamSelected.value,
-      season: selectedSeason.value,
-      homePitcherId: selectedPitcherId.value,
-      awayTeamId: selectedOpponentId.value,
-      awaySeason: selectedAwaySeason.value,
-      awayPitcherId: selectedAwayPitcherId.value,
+      homeTeamId: resolvedHomeTeamId.value,
+      season: resolvedHomeSeason.value,
+      homePitcherId: resolvedHomePitcherId.value,
+      awayTeamId: resolvedAwayTeamId.value,
+      awaySeason: resolvedAwaySeason.value,
+      awayPitcherId: resolvedAwayPitcherId.value,
       weather: selectedWeather.value,
       timeOfDay: selectedTimeOfDay.value,
       classicRelievers: _buildClassicRelievers(),
+      playerSide: playerSide.value,
     })
     // Dock Ellis: apply no-hitter filter for simulation too
     if (isDockEllis.value) _applyEllisNoHitter(newGame)
@@ -2251,7 +2273,9 @@ async function resetGame() {
   calledShotActive.value = false
   calledShotShown = false
   calledShotPendingPitch = null
+  calledShotPendingAction = null
   gameMode.value = null
+  playerSide.value = 'home'
   stopReplayTimer()
   simulating.value = false; simPaused.value = false
   simSnapshots.value = []
@@ -2319,7 +2343,9 @@ function doPitch(pitchType) {
     return
   }
   _saveSnapshot()
+  _checkAaron715(game.value)
   processPitch(game.value, pitchType)
+  _afterAaron715(game.value)
   for (const id in warmingUp.value) {
     warmingUp.value[id].pitches++
   }
@@ -2350,7 +2376,8 @@ watch(() => game.value?.game_status, (status) => {
 
 function _checkAaron715(state) {
   if (!state || classicLabel.value !== "Hank Aaron's 715th Home Run") return
-  if (state.player_role !== 'batting' || state.is_top) return
+  // Aaron is on the home team — only trigger when home team is batting (bottom of inning)
+  if (state.is_top) return
   // Find Hank Aaron in home lineup by name
   const aaronIdx = state.home_lineup?.findIndex(b => b.name && b.name.includes('Hank Aaron'))
   if (aaronIdx === -1 || aaronIdx == null) return
@@ -2427,13 +2454,25 @@ function _advanceCalledShot() {
   }
 }
 
+let calledShotPendingAction = null
+
 function dismissCalledShot() {
   calledShotActive.value = false
   if (simulating.value) {
     // Resume simulation replay
     startReplayTimer()
+  } else if (calledShotPendingAction) {
+    // Player is batting as Ruth — force HR and resolve at-bat
+    game.value._forceNextOutcome = 'homerun'
+    _saveSnapshot()
+    processAtBat(game.value, calledShotPendingAction)
+    calledShotPendingAction = null
+    for (const id in warmingUp.value) {
+      warmingUp.value[id].pitches++
+    }
+    game.value = { ...game.value }
   } else {
-    // Interactive: force a homerun and resolve the pitch
+    // Player is pitching against Ruth — force HR and resolve the pitch
     game.value._forceNextOutcome = 'homerun'
     _saveSnapshot()
     processPitch(game.value, calledShotPendingPitch || 'fastball')
@@ -2449,6 +2488,15 @@ function dismissCalledShot() {
 const pendingSteal = ref(null)
 
 function doBat(action) {
+  // Babe Ruth's Called Shot: intercept when player is batting as Ruth
+  if (!calledShotShown && _isCalledShotPA(game.value)) {
+    calledShotShown = true
+    calledShotPendingAction = action
+    calledShotIndex.value = 0
+    calledShotActive.value = true
+    _advanceCalledShot()
+    return
+  }
   _saveSnapshot()
   _checkAaron715(game.value)
   // Resolve pending steal before the at-bat
@@ -2538,9 +2586,10 @@ function doSwitchPitcher(reliever) {
   // Only allow switching if pitcher has warmed up enough
   const wu = warmingUp.value[reliever.id]
   if (!wu || wu.pitches < WARMUP_PITCHES_NEEDED) return
-  const idx = game.value.home_bullpen.findIndex((p) => p.id === reliever.id)
-  if (idx !== -1) game.value.home_bullpen.splice(idx, 1)
-  switchPitcher(game.value, 'home', reliever)
+  const side = myPrefix.value
+  const idx = game.value[side + '_bullpen'].findIndex((p) => p.id === reliever.id)
+  if (idx !== -1) game.value[side + '_bullpen'].splice(idx, 1)
+  switchPitcher(game.value, side, reliever)
   // Remove the switched pitcher from warmup tracking
   const { [reliever.id]: _, ...rest } = warmingUp.value
   warmingUp.value = rest
@@ -3029,6 +3078,19 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 /* Pitcher name — bold for readability */
 .pitcher-opt-name {
   font-weight: bold;
+}
+
+/* Role tag (SP, RP, CL, etc.) next to pitcher names */
+.pitcher-role-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #3a3a4a;
+  color: #aaa;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 /* Pitcher stats (ERA, K/9) — smaller and gray to be secondary to the name */
@@ -4701,8 +4763,16 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 }
 
 .venue-team {
+  font-size: 12px;
+  color: #ccc;
+}
+
+.venue-side-label {
   font-size: 11px;
-  color: #888;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #e94560;
 }
 
 /* ========== Venue Label (Active Game) ========== */

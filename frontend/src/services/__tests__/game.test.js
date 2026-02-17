@@ -42,6 +42,11 @@ function makeGameState(overrides = {}) {
     home_score: Array(9).fill(0),
     away_total: 0,
     home_total: 0,
+    away_hits: 0,
+    home_hits: 0,
+    away_errors: 0,
+    home_errors: 0,
+    player_side: 'home',
     player_role: 'pitching',
     game_status: 'active',
     play_log: [],
@@ -1183,5 +1188,201 @@ describe('strikeout', () => {
     processAtBat(state, 'swing')
     expect(state.strikes).toBe(2)
     expect(state.outs).toBe(0) // still no strikeout
+  })
+})
+
+// ──────────────────────────────────────────────
+// PLAYER SIDE — home vs away
+// ──────────────────────────────────────────────
+
+/** Build a game state where the player controls the away team. */
+function makeAwayGameState(overrides = {}) {
+  const state = makeGameState(overrides)
+  state.player_side = 'away'
+  // Away player bats in top of inning (away team at bat)
+  state.player_role = 'batting'
+  return state
+}
+
+describe('player side', () => {
+  it('home player starts with player_role pitching (default behavior)', () => {
+    const state = makeGameState()
+    expect(state.player_side).toBe('home')
+    expect(state.player_role).toBe('pitching')
+    expect(state.is_top).toBe(true)
+  })
+
+  it('away player starts with player_role batting in top of 1st', () => {
+    const state = makeAwayGameState()
+    expect(state.player_side).toBe('away')
+    expect(state.player_role).toBe('batting')
+    expect(state.is_top).toBe(true)
+  })
+
+  it('processPitch works for away player pitching in bottom of inning', () => {
+    const state = makeAwayGameState()
+    state.is_top = false
+    state.player_role = 'pitching'
+    const before = state.play_log.length
+    processPitch(state, 'fastball')
+    expect(state.away_pitch_count).toBe(1)
+    expect(state.play_log.length).toBeGreaterThan(before)
+  })
+
+  it('processAtBat works for away player batting in top of inning', () => {
+    const state = makeAwayGameState()
+    const before = state.play_log.length
+    processAtBat(state, 'swing')
+    // CPU is home team, so home_pitch_count should increment
+    expect(state.home_pitch_count).toBe(1)
+    expect(state.play_log.length).toBeGreaterThan(before)
+  })
+
+  it('processAtBat rejects input when away player is pitching', () => {
+    const state = makeAwayGameState()
+    state.is_top = false
+    state.player_role = 'pitching'
+    processAtBat(state, 'swing')
+    expect(state.last_play).toMatch(/pitching right now/)
+  })
+
+  it('processPitch rejects input when away player is batting', () => {
+    const state = makeAwayGameState()
+    // player_role is 'batting' by default for away player in top
+    processPitch(state, 'fastball')
+    expect(state.last_play).toMatch(/batting right now/)
+  })
+
+  it('half-inning transition: away player goes from batting to pitching', () => {
+    const state = makeAwayGameState()
+    // Force 3 quick outs to end the top half
+    for (let i = 0; i < 3; i++) {
+      state._forceNextOutcome = 'groundout'
+      vi.spyOn(Math, 'random').mockReturnValue(0.99) // skip error and DP
+      processAtBat(state, 'swing')
+      Math.random.mockRestore()
+    }
+    // Should now be bottom of 1st, away player pitching
+    expect(state.is_top).toBe(false)
+    expect(state.player_role).toBe('pitching')
+  })
+
+  it('half-inning transition: away player goes from pitching back to batting', () => {
+    const state = makeAwayGameState()
+    // Force all outcomes to groundouts (processPitch doesn't use _forceNextOutcome)
+    state._outcomeFilter = (_st, _outcome) => 'groundout'
+    // End top half (player batting)
+    for (let i = 0; i < 3; i++) {
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      processAtBat(state, 'swing')
+      Math.random.mockRestore()
+    }
+    expect(state.player_role).toBe('pitching')
+    // End bottom half (player pitching)
+    for (let i = 0; i < 3; i++) {
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      processPitch(state, 'fastball')
+      Math.random.mockRestore()
+    }
+    // Should now be top of 2nd, away player batting again
+    expect(state.is_top).toBe(true)
+    expect(state.inning).toBe(2)
+    expect(state.player_role).toBe('batting')
+  })
+
+  it('processAtBat auto-replaces fatigued CPU pitcher (home side) when player is away', () => {
+    const state = makeAwayGameState()
+    state.home_pitch_count = 100
+    const originalName = state.home_pitcher.name
+    processAtBat(state, 'take')
+    expect(state.home_pitcher.name).not.toBe(originalName)
+    expect(state.home_pitch_count).toBeLessThanOrEqual(1)
+  })
+
+  it('simulateGame works with away player and produces a final result', () => {
+    const state = makeAwayGameState()
+    const { state: final, snapshots } = simulateGame(state)
+    expect(final.game_status).toBe('final')
+    expect(snapshots.length).toBeGreaterThan(1)
+    expect(final.inning).toBeGreaterThanOrEqual(9)
+    expect(final.home_total).not.toBe(final.away_total)
+  })
+
+  it('simulateGame as away player: player_role alternates correctly through snapshots', () => {
+    const state = makeAwayGameState()
+    const { snapshots } = simulateGame(state)
+    for (const snap of snapshots) {
+      // Away player bats in top (is_top=true), pitches in bottom (is_top=false)
+      if (snap.is_top) {
+        expect(snap.player_role).toBe('batting')
+      } else {
+        expect(snap.player_role).toBe('pitching')
+      }
+    }
+  })
+
+  it('switchPitcher works for away side', () => {
+    const state = makeAwayGameState()
+    state.away_pitch_count = 95
+    const reliever = { id: 99, name: 'Away New Arm', stats: { era: 2.50, k_per_9: 10.0, bb_per_9: 2.0 } }
+    switchPitcher(state, 'away', reliever)
+    expect(state.away_pitcher.name).toBe('Away New Arm')
+    expect(state.away_pitch_count).toBe(0)
+    expect(state.away_pitcher_stats.id).toBe(99)
+  })
+
+  it('outcome filter applies in processAtBat (e.g., Ellis no-hitter when player is away)', () => {
+    const state = makeAwayGameState()
+    // Apply a filter that converts all hits to groundouts when is_top is true
+    state._outcomeFilter = (st, outcome) => {
+      if (st.is_top && ['single', 'double', 'triple', 'homerun'].includes(outcome)) return 'groundout'
+      return outcome
+    }
+    // Force a single in the top (player batting as away)
+    state._forceNextOutcome = 'single'
+    vi.spyOn(Math, 'random').mockReturnValue(0.99) // skip error
+    processAtBat(state, 'swing')
+    Math.random.mockRestore()
+    // The filter should have converted it to a groundout
+    expect(state.away_hits).toBe(0)
+    expect(state.outs).toBe(1)
+  })
+
+  it('game over message reflects away player perspective', () => {
+    const state = makeAwayGameState()
+    // Force a quick game: home wins
+    state.inning = 9
+    state.is_top = true
+    state.home_total = 5
+    state.away_total = 3
+    // End the top of 9th with 3 outs → game should end (home is ahead)
+    for (let i = 0; i < 3; i++) {
+      state._forceNextOutcome = 'groundout'
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      processAtBat(state, 'swing')
+      Math.random.mockRestore()
+    }
+    expect(state.game_status).toBe('final')
+    // Away player lost (away_total < home_total)
+    expect(state.last_play).toMatch(/You lose!/)
+  })
+
+  it('game over message shows win for away player when away team leads', () => {
+    const state = makeAwayGameState()
+    // Set up bottom of 9th scenario: away leads, need to get 3 outs
+    state.inning = 9
+    state.is_top = false
+    state.player_role = 'pitching'
+    state.away_total = 5
+    state.home_total = 3
+    // Force all outcomes to groundouts
+    state._outcomeFilter = (_st, _outcome) => 'groundout'
+    for (let i = 0; i < 3; i++) {
+      vi.spyOn(Math, 'random').mockReturnValue(0.99)
+      processPitch(state, 'fastball')
+      Math.random.mockRestore()
+    }
+    expect(state.game_status).toBe('final')
+    expect(state.last_play).toMatch(/You win!/)
   })
 })

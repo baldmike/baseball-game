@@ -208,5 +208,11 @@ body {
   .nav-tabs {
     justify-content: flex-end;
   }
+
+  .nav-tab {
+    min-width: auto;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
 }
 </style>

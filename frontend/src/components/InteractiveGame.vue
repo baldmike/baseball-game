@@ -4874,7 +4874,11 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 
   .game-container .controls,
   .game-container .sim-controls {
-    order: -1;
+    order: 2;
+  }
+
+  .game-container .field-layout {
+    order: 3;
   }
 
   /* Tighter padding on wizard screens */

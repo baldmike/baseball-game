@@ -2374,6 +2374,34 @@ describe("Babe Ruth's Called Shot detection", () => {
     expect(/\bRuth\b/i.test('ruth')).toBe(true)
     expect(/\bRuth\b/i.test('Ruthless')).toBe(false)
   })
+
+  it('_outcomeFilter forces homerun through processPitch (pitching path)', () => {
+    const state = makeGameState()
+    state.away_lineup[0] = { id: 999, name: 'Babe Ruth', stats: { avg: 0.341, slg: 0.700, k_rate: 0.090, hr_rate: 0.086 } }
+    state.away_box_score[0] = { id: 999, name: 'Babe Ruth', pos: 'RF', ab: 0, r: 0, h: 0, '2b': 0, '3b': 0, hr: 0, rbi: 0, bb: 0, so: 0, sb: 0 }
+    const totalBefore = state.away_total
+    state._outcomeFilter = () => 'homerun'
+    processPitch(state, 'fastball')
+    state._outcomeFilter = null
+    expect(state.away_total).toBe(totalBefore + 1)
+    expect(state.away_box_score[0].hr).toBe(1)
+    expect(state.last_play).toMatch(/homerun/i)
+  })
+
+  it('_forceNextOutcome forces homerun through processAtBat (batting path)', () => {
+    const state = makeGameState()
+    state.is_top = false
+    state.player_role = 'batting'
+    state.player_side = 'home'
+    state.home_lineup[0] = { id: 999, name: 'Babe Ruth', stats: { avg: 0.341, slg: 0.700, k_rate: 0.090, hr_rate: 0.086 } }
+    state.home_box_score[0] = { id: 999, name: 'Babe Ruth', pos: 'RF', ab: 0, r: 0, h: 0, '2b': 0, '3b': 0, hr: 0, rbi: 0, bb: 0, so: 0, sb: 0 }
+    const totalBefore = state.home_total
+    state._forceNextOutcome = 'homerun'
+    processAtBat(state, 'swing')
+    expect(state.home_total).toBe(totalBefore + 1)
+    expect(state.home_box_score[0].hr).toBe(1)
+    expect(state.last_play).toMatch(/homerun/i)
+  })
 })
 
 // ──────────────────────────────────────────────

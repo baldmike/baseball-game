@@ -18,7 +18,10 @@
       "Bash(bash deploy.sh)",
       "Bash(npm run test:*)",
       "WebFetch(domain:basebald.com)",
-      "Bash(npx vitest run:*)"
+      "Bash(npx vitest run:*)",
+      "Bash(for:*)",
+      "Bash(do npx vitest run)",
+      "Bash(done)"
     ]
   }
 }

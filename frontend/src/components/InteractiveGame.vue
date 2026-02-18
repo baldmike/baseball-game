@@ -589,6 +589,14 @@
         </div>
       </div>
 
+      <!-- Babe Ruth Called Shot HR confirmation -->
+      <div v-if="calledShotHRBanner" class="game-over-overlay">
+        <div class="called-shot-card">
+          <p class="called-shot-line visible called-shot-hr-text">The Babe called his home run!</p>
+          <button class="play-btn called-shot-btn" @click="dismissCalledShotHR">Continue Game</button>
+        </div>
+      </div>
+
       <!-- Aaron 715 announcement overlay -->
       <div v-if="aaronAnnouncement" class="game-over-overlay">
         <div class="aaron-overlay-content">
@@ -2479,6 +2487,7 @@ async function resetGame() {
   showDiscoVideo.value = false
   showEllisNoNo.value = false
   calledShotActive.value = false
+  calledShotHRBanner.value = false
   calledShotShown = false
   calledShotPendingPitch = null
   calledShotPendingAction = null
@@ -2662,11 +2671,13 @@ function dismissAaronAnnouncement() {
 
 /** Babe Ruth's Called Shot — cinematic sequence on his 3rd plate appearance. */
 const calledShotActive = ref(false)
+const calledShotHRBanner = ref(false)
 const calledShotMessages = [
   'Ruth steps out of the box...',
   'The Babe gestures toward center field.',
   'Ruth raises his bat toward the bleachers.',
-  'The crowd jeers. Ruth points.',
+  'The crowd jeers.',
+  'Ruth points.',
 ]
 const calledShotIndex = ref(0)
 let calledShotPendingPitch = null
@@ -2707,8 +2718,9 @@ let calledShotPendingAction = null
 function dismissCalledShot() {
   calledShotActive.value = false
   if (simulating.value) {
-    // Resume simulation replay
-    startReplayTimer()
+    // Show HR confirmation banner before resuming simulation
+    calledShotHRBanner.value = true
+    return
   } else if (calledShotPendingAction) {
     // Player is batting as Ruth — force HR and resolve at-bat
     game.value._forceNextOutcome = 'homerun'
@@ -2719,6 +2731,7 @@ function dismissCalledShot() {
       warmingUp.value[id].pitches++
     }
     game.value = { ...game.value }
+    calledShotHRBanner.value = true
   } else {
     // Player is pitching against Ruth — force HR and resolve the pitch
     game.value._outcomeFilter = () => 'homerun'
@@ -2730,6 +2743,14 @@ function dismissCalledShot() {
       warmingUp.value[id].pitches++
     }
     game.value = { ...game.value }
+    calledShotHRBanner.value = true
+  }
+}
+
+function dismissCalledShotHR() {
+  calledShotHRBanner.value = false
+  if (simulating.value) {
+    startReplayTimer()
   }
 }
 
@@ -3773,6 +3794,12 @@ defineExpose({ showBackButton, handleBack, isPlaying, resetGame, soundMuted, onT
 .called-shot-line.visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+.called-shot-hr-text {
+  font-size: 24px;
+  font-weight: bold;
+  font-style: normal;
 }
 
 .called-shot-btn {

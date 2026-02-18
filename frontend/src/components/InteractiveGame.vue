@@ -1719,6 +1719,8 @@ const freeFantasyMatchups = [
   { label: 'Pitching Duel', subtitle: 'Old School Duel', home: { id: 138, name: 'Cardinals', season: 1968, pitcherId: 114756, pitcherName: 'Bob Gibson' }, away: { id: 119, name: 'Dodgers', season: 1963, pitcherId: 117277, pitcherName: 'Sandy Koufax' } },
   { label: "Big Red Machine vs Murderer's Row", subtitle: "You've waited long enough.", home: { id: 147, name: 'Yankees', season: 1927, pitcherId: 116241, pitcherName: 'Waite Hoyt' }, away: { id: 113, name: 'Reds', season: 1975, pitcherId: 115239, pitcherName: 'Don Gullett' } },
   { label: 'Battle for The Bottom', subtitle: 'Worst of the Worst', home: { id: 145, name: 'White Sox', season: 2024, pitcherId: 676979, pitcherName: 'Garrett Crochet' }, away: { id: 121, name: 'Mets', season: 1962, pitcherId: 112783, pitcherName: 'Roger Craig' } },
+  // The Apex Duel: Pedro (1.74 ERA in 2000) vs Koufax (2.04 ERA in 1965).
+  // Has a pre-game banner (apexDuelBanner) and a low-scoring _outcomeFilter (_applyApexDuelFilter).
   { label: 'The Apex Duel', subtitle: 'Two of the greatest arms ever. Low runs guaranteed.', home: { id: 111, name: 'Red Sox', season: 2000, pitcherId: 118377, pitcherName: 'Pedro Martinez' }, away: { id: 119, name: 'Dodgers', season: 1965, pitcherId: 117277, pitcherName: 'Sandy Koufax' } },
 ]
 
@@ -2222,10 +2224,23 @@ function _applyEllisNoHitter(state) {
   }
 }
 
+/**
+ * Apex Duel outcome filter — makes Pedro vs Koufax a low-scoring pitchers' duel.
+ *
+ * Applied to state._outcomeFilter so the game engine calls it on every at-bat.
+ * Aggressively downgrades extra-base hits and converts some singles to outs.
+ * Typical result: 0–2 runs per team, frequent extra-inning games.
+ *
+ * Conversion rates:
+ *   HR  → 85% become outs, 15% become singles (almost no homers)
+ *   3B  → 80% become doubles, 20% become singles
+ *   2B  → 70% become singles, 30% stay doubles
+ *   1B  → 40% become outs, 60% stay singles
+ *   Outs, walks, strikeouts → unchanged
+ */
 function _applyApexDuelFilter(state) {
   const outReplacements = ['groundout', 'flyout', 'lineout', 'groundout', 'flyout']
   state._outcomeFilter = (st, outcome) => {
-    // Downgrade extra-base hits: HR → single 85%, double → single 70%, triple → single 80%
     if (outcome === 'homerun') {
       return Math.random() < 0.15 ? 'single' : outReplacements[Math.floor(Math.random() * outReplacements.length)]
     }
@@ -2235,7 +2250,6 @@ function _applyApexDuelFilter(state) {
     if (outcome === 'double') {
       return Math.random() < 0.30 ? outcome : 'single'
     }
-    // Convert ~40% of singles to outs
     if (outcome === 'single') {
       return Math.random() < 0.40 ? outReplacements[Math.floor(Math.random() * outReplacements.length)] : outcome
     }
@@ -2243,6 +2257,12 @@ function _applyApexDuelFilter(state) {
   }
 }
 
+/**
+ * Dismiss the Apex Duel pre-game banner and resume the pending action.
+ * The banner is shown when the user clicks "Play Ball!" or "Simulate" —
+ * we stash which action they chose in apexDuelPendingAction, show the
+ * banner, and then call the real startGame/startSimulation here.
+ */
 function dismissApexDuel() {
   apexDuelBanner.value = false
   if (apexDuelPendingAction === 'play') {
@@ -2255,6 +2275,8 @@ function dismissApexDuel() {
 }
 
 async function startGame() {
+  // Apex Duel: intercept first call to show the pre-game banner.
+  // dismissApexDuel() will call startGame() again after the user clicks "Let's Go".
   if (isApexDuel.value && !apexDuelBanner.value) {
     apexDuelPendingAction = 'play'
     apexDuelBanner.value = true
@@ -2327,6 +2349,7 @@ function _buildClassicRelievers() {
 }
 
 async function startSimulation() {
+  // Apex Duel: intercept first call to show the pre-game banner (same pattern as startGame).
   if (isApexDuel.value && !apexDuelBanner.value) {
     apexDuelPendingAction = 'simulate'
     apexDuelBanner.value = true
@@ -2742,7 +2765,21 @@ function dismissAaronAnnouncement() {
   if (simulating.value) startReplayTimer()
 }
 
-/** Babe Ruth's Called Shot — cinematic sequence on his 3rd plate appearance. */
+/**
+ * Babe Ruth's Called Shot — two-phase cinematic on his 3rd plate appearance.
+ *
+ * Phase 1 (calledShotActive): Dramatic text sequence ("Ruth steps out…",
+ *   "gestures toward center field…", etc.) with a "Throw the pitch" button.
+ * Phase 2 (calledShotHRBanner): After the guaranteed HR resolves, shows
+ *   "The Babe called his home run!" until the user clicks "Continue Game".
+ *
+ * Three code paths handle this depending on game mode:
+ *   1. Simulation — pause replay, show Phase 1, then Phase 2, then resume
+ *   2. Player batting as Ruth — stash the pending action, show Phase 1,
+ *      force HR via _forceNextOutcome, show Phase 2
+ *   3. Player pitching against Ruth — stash the pending pitch, show Phase 1,
+ *      force HR via _outcomeFilter, show Phase 2
+ */
 const calledShotActive = ref(false)
 const calledShotHRBanner = ref(false)
 const calledShotMessages = [
@@ -2820,6 +2857,7 @@ function dismissCalledShot() {
   }
 }
 
+/** Dismiss the Phase 2 "Babe called it!" banner and resume play. */
 function dismissCalledShotHR() {
   calledShotHRBanner.value = false
   if (simulating.value) {

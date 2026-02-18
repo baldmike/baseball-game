@@ -483,31 +483,39 @@ const gridStyle = computed(() => ({
   }
 
   .game-info {
-    margin-top: 4px;
-    padding-top: 4px;
+    margin-top: 2px;
+    padding-top: 2px;
   }
 
   .info-label {
-    font-size: 9px;
-    margin-bottom: 2px;
+    font-size: 7px;
+    margin-bottom: 1px;
   }
 
   .count-numbers {
-    font-size: 16px;
+    font-size: 11px;
+  }
+
+  .count-labels {
+    font-size: 7px;
   }
 
   .inning-number {
-    font-size: 16px;
+    font-size: 11px;
+  }
+
+  .arrow {
+    font-size: 9px;
   }
 
   .out-dot {
-    width: 10px;
-    height: 10px;
+    width: 7px;
+    height: 7px;
   }
 
   .out-dots {
-    margin-top: 3px;
-    gap: 6px;
+    margin-top: 2px;
+    gap: 4px;
   }
 
   .last-play {
